@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv(".env.splunk-ao", override=True)
+load_dotenv(os.environ.get("SPLUNK_AO_ENV_FILE", ".env.splunk-ao"), override=True)
 
 from common_splunk_ao import (
     DEFAULT_AGENT_CONTROL_URL,

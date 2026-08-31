@@ -14,13 +14,49 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 from uuid import UUID
 
 from dotenv import load_dotenv
 
-load_dotenv(".env.splunk-ao", override=True)
+base_dotenv_path = Path(".env")
+if base_dotenv_path.exists():
+    load_dotenv(base_dotenv_path, override=True)
+
+dotenv_path = Path(os.environ.get("SPLUNK_AO_ENV_FILE", ".env.otel-lab0"))
+if not dotenv_path.exists():
+    dotenv_path = Path(".env.splunk-ao")
+os.environ["SPLUNK_AO_ENV_FILE"] = str(dotenv_path)
+load_dotenv(dotenv_path, override=True)
+
+
+def _configure_lab0_aliases() -> None:
+    """Map the shared Lab0 secrets to the SDK-specific environment names."""
+    if os.environ.get("SPLUNK_AO_REALM") != "lab0":
+        return
+
+    ingest_token = os.environ.get("LAB0_INGEST_TOKEN")
+    sf_token = os.environ.get("LAB0_SF_TOKEN")
+    if ingest_token:
+        os.environ.setdefault("SPLUNK_AO_O11Y_TOKEN", ingest_token)
+        os.environ.setdefault("SPLUNK_AO_O11Y_API_TOKEN", ingest_token)
+    if sf_token:
+        os.environ["AGENT_CONTROL_API_KEY"] = sf_token
+        os.environ["AGENT_CONTROL_API_KEY_HEADER"] = "X-SF-Token"
+
+    os.environ.setdefault(
+        "AGENT_CONTROL_URL",
+        "https://app.lab0.signalfx.com/ao/agent-control",
+    )
+    os.environ.setdefault(
+        "AGENT_CONTROL_RUNTIME_TOKEN_HEADER",
+        "X-Agent-Control-Runtime-Token",
+    )
+
+
+_configure_lab0_aliases()
 
 from common_splunk_ao import (
     resolve_agent_control_api_key,
@@ -40,15 +76,24 @@ def _required_env(name: str) -> str:
     return value
 
 
+def _is_o11y() -> bool:
+    return bool(os.environ.get("SPLUNK_AO_REALM"))
+
+
 def _otel_endpoint(args: Any) -> str:
     configured = os.environ.get("AGENT_CONTROL_OTEL_ENDPOINT")
     if configured:
         return configured.rstrip("/")
+    if _is_o11y():
+        realm = _required_env("SPLUNK_AO_REALM")
+        return f"https://ingest.{realm}.observability.splunkcloud.com/v2/trace/otlp"
     api_url = args.api_base_url or _required_env("SPLUNK_AO_API_URL")
     return urljoin(api_url.rstrip("/") + "/", "otel/v1/traces").rstrip("/")
 
 
-def _otel_headers(args: Any) -> dict[str, str]:
+def _otel_headers(
+    args: Any, *, project_id: str, log_stream_id: str
+) -> dict[str, str]:
     configured = os.environ.get("AGENT_CONTROL_OTEL_HEADERS")
     if configured:
         try:
@@ -65,6 +110,13 @@ def _otel_headers(args: Any) -> dict[str, str]:
             )
         return value
 
+    if _is_o11y():
+        return {
+            "X-SF-Token": _required_env("SPLUNK_AO_O11Y_TOKEN"),
+            "projectid": project_id,
+            "logstreamid": log_stream_id,
+        }
+
     return {
         "Splunk-AO-API-Key": _required_env("SPLUNK_AO_API_KEY"),
         "project": args.project,
@@ -75,7 +127,11 @@ def _otel_headers(args: Any) -> dict[str, str]:
 def _validate_otel_configuration(
     args: Any, endpoint: str, headers: dict[str, str]
 ) -> None:
-    required_headers = {"Splunk-AO-API-Key", "project", "logstream"}
+    required_headers = (
+        {"X-SF-Token", "projectid", "logstreamid"}
+        if _is_o11y()
+        else {"Splunk-AO-API-Key", "project", "logstream"}
+    )
     missing = sorted(required_headers.difference(headers))
     if missing:
         raise RuntimeError(f"OTLP routing headers are missing: {', '.join(missing)}")
@@ -87,6 +143,15 @@ def _validate_otel_configuration(
 
 
 def _resolve_splunk_ao_ids(args: Any) -> tuple[str, str]:
+    configured_project_id = os.environ.get("SPLUNK_AO_PROJECT_ID")
+    configured_stream_id = os.environ.get("SPLUNK_AO_AGENT_STREAM_ID")
+    if configured_project_id and configured_stream_id:
+        return configured_project_id, configured_stream_id
+    if configured_project_id or configured_stream_id:
+        raise RuntimeError(
+            "SPLUNK_AO_PROJECT_ID and SPLUNK_AO_AGENT_STREAM_ID must be set together."
+        )
+
     from splunk_ao.agent_streams import get_agent_stream
 
     agent_stream = get_agent_stream(name=args.log_stream, project_name=args.project)
@@ -109,6 +174,14 @@ def _set_common_span_attributes(span: Any, *, operation: str, input_value: Any) 
 
 def _trace_uuid(span: Any) -> str:
     return str(UUID(int=span.get_span_context().trace_id))
+
+
+def _backend_trace_uuid(source_trace_id: str) -> str:
+    """Return the UUIDv4 form used by Lab0 for an arbitrary OTEL trace ID."""
+    raw = bytearray(UUID(source_trace_id).bytes)
+    raw[6] = (raw[6] & 0x0F) | 0x40
+    raw[8] = (raw[8] & 0x3F) | 0x80
+    return str(UUID(bytes=bytes(raw)))
 
 
 def _otel_trace_context_for_span(span: Any) -> dict[str, str] | None:
@@ -138,6 +211,14 @@ async def _verify_otel_trace(
     log_stream_id: str,
     trace_id: str,
 ) -> None:
+    if _is_o11y():
+        await _verify_o11y_otel_trace(
+            project_id=project_id,
+            log_stream_id=log_stream_id,
+            source_trace_id=trace_id,
+        )
+        return
+
     try:
         await demo._verify_trace(
             args,
@@ -179,14 +260,121 @@ async def _verify_otel_trace(
     )
 
 
+async def _verify_o11y_otel_trace(
+    *, project_id: str, log_stream_id: str, source_trace_id: str
+) -> None:
+    """Verify recent Lab0 spans without assuming OTLP and AO trace IDs are equal."""
+    import httpx
+
+    realm = _required_env("SPLUNK_AO_REALM")
+    api_origin = os.environ.get(
+        "SPLUNK_AO_O11Y_API_ENDPOINT",
+        f"https://api.{realm}.observability.splunkcloud.com",
+    ).rstrip("/")
+    api_base = f"{api_origin}/ao/api"
+    headers = {"X-SF-Token": _required_env("SPLUNK_AO_O11Y_TOKEN")}
+    expected_backend_trace_id = _backend_trace_uuid(source_trace_id)
+    request_body = {
+        "log_stream_id": log_stream_id,
+        "limit": 100,
+        "filter_tree": {
+            "filter": {
+                "name": "trace_id",
+                "operator": "eq",
+                "value": expected_backend_trace_id,
+                "type": "text",
+            }
+        },
+        "select_columns": {
+            "column_ids": [
+                "id",
+                "trace_id",
+                "type",
+                "name",
+                "created_at",
+                "control_id",
+                "check_stage",
+                "applies_to",
+                "output",
+            ],
+            "include_all_metrics": False,
+            "include_all_feedback": False,
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for attempt in range(12):
+            response = await client.post(
+                f"{api_base}/projects/{project_id}/spans/partial_search",
+                headers=headers,
+                json=request_body,
+            )
+            response.raise_for_status()
+            records = response.json().get("records", [])
+            control_records = [
+                record
+                for record in records
+                if record.get("type") == "control"
+                or record.get("name") == "agent_control.control_execution"
+            ]
+            application_records = [
+                record
+                for record in records
+                if record.get("name")
+                in {
+                    "agent-control-splunk-ao-otel-e2e",
+                    "draft_transfer_plan",
+                    "process_wire_transfer",
+                }
+            ]
+            control_trace_ids = {
+                str(record.get("trace_id"))
+                for record in control_records
+                if record.get("trace_id")
+            }
+            application_trace_ids = {
+                str(record.get("trace_id"))
+                for record in application_records
+                if record.get("trace_id")
+            }
+            backend_trace_ids = sorted(control_trace_ids & application_trace_ids)
+            if backend_trace_ids:
+                matching_control_records = [
+                    record
+                    for record in control_records
+                    if str(record.get("trace_id")) in backend_trace_ids
+                ]
+                matching_application_records = [
+                    record
+                    for record in application_records
+                    if str(record.get("trace_id")) in backend_trace_ids
+                ]
+                print("Lab0 OTLP readback verification:")
+                print(f"  source_otel_trace_id={source_trace_id}")
+                print(f"  expected_backend_trace_id={expected_backend_trace_id}")
+                print(f"  backend_trace_ids={backend_trace_ids}")
+                print(f"  application_spans={len(matching_application_records)}")
+                print(f"  control_spans={len(matching_control_records)}")
+                return
+            if attempt < 11:
+                await asyncio.sleep(5.0)
+
+    raise RuntimeError(
+        "Lab0 OTLP readback did not return both application and Agent Control spans "
+        "for the configured project and agent stream."
+    )
+
+
 async def _run(args: Any) -> None:
-    demo._configure_splunk_ao_environment(args)
+    if _is_o11y():
+        os.environ["AGENT_CONTROL_URL"] = args.server_url
+        os.environ["AGENT_CONTROL_RUNTIME_AUTH_MODE"] = args.runtime_auth_mode
+        resolve_agent_control_api_key()
+        resolve_agent_control_api_key_header()
+    else:
+        demo._configure_splunk_ao_environment(args)
     os.environ["AGENT_CONTROL_OBSERVABILITY_SINK_NAME"] = "otel"
     os.environ["AGENT_CONTROL_OTEL_ENABLED"] = "true"
-
-    endpoint = _otel_endpoint(args)
-    headers = _otel_headers(args)
-    _validate_otel_configuration(args, endpoint, headers)
 
     import agent_control
     from opentelemetry import trace
@@ -195,6 +383,11 @@ async def _run(args: Any) -> None:
     from splunk_ao import otel
 
     project_id, log_stream_id = await asyncio.to_thread(_resolve_splunk_ao_ids, args)
+    endpoint = _otel_endpoint(args)
+    headers = _otel_headers(
+        args, project_id=project_id, log_stream_id=log_stream_id
+    )
+    _validate_otel_configuration(args, endpoint, headers)
     provider = TracerProvider(
         resource=Resource.create(
             {
@@ -202,10 +395,10 @@ async def _run(args: Any) -> None:
             }
         )
     )
-    otel.add_splunk_ao_span_processor(
+    processor = otel.add_splunk_ao_span_processor(
         provider,
-        project=args.project,
-        agentstream=args.log_stream,
+        project_id=project_id,
+        agent_stream_id=log_stream_id,
     )
     trace.set_tracer_provider(provider)
     tracer = provider.get_tracer("agent-control-splunk-ao-otel-demo")
@@ -236,6 +429,8 @@ async def _run(args: Any) -> None:
         server_url=args.server_url,
         api_key=resolve_agent_control_api_key(),
         api_key_header=resolve_agent_control_api_key_header(),
+        runtime_token_header="X-Agent-Control-Runtime-Token",
+        runtime_auth_mode=args.runtime_auth_mode,
         observability_enabled=True,
         observability_sink_name="otel",
         observability_sink_config={
@@ -370,7 +565,14 @@ async def _run(args: Any) -> None:
     finally:
         agent_control.clear_trace_context_provider()
         await agent_control.shutdown_observability()
-        provider.force_flush()
+        if not processor.force_flush():
+            raise RuntimeError("OTLP application span flush timed out.")
+        export_health = processor.export_health
+        print(
+            "OTLP application export health: "
+            f"healthy={export_health.healthy} "
+            f"consecutive_failures={export_health.consecutive_failures}"
+        )
         provider.shutdown()
 
     print()
