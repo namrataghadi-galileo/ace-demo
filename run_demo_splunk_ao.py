@@ -15,7 +15,7 @@ from uuid import uuid4
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv(".env.splunk-ao", override=True)
+load_dotenv(os.environ.get("SPLUNK_AO_ENV_FILE", ".env.splunk-ao"), override=True)
 
 from common_splunk_ao import (
     DEFAULT_AGENT_CONTROL_URL,
@@ -985,7 +985,7 @@ async def _verify_runtime_token_exchange(
         response.raise_for_status()
         payload = response.json()
 
-    token = payload.get("token")
+    token = payload.get("token") or payload.get("runtime_token")
     if not isinstance(token, str) or not token:
         raise RuntimeError(
             "Runtime token exchange succeeded but did not return a token."
