@@ -31,23 +31,25 @@ Optional environment variables:
   AC_VERIFY_DELAY_SECONDS      Defaults to 5
   AGENT_CONTROL_OTEL_ENDPOINT  Overrides the realm-derived OTLP endpoint
 
-Where to get the tokens:
+Where to get the tokens (realm is rc0 in these examples; swap in your realm):
 
   SPLUNK_AO_O11Y_TOKEN
-      O11y Cloud UI, Settings > Access Tokens. Use an INGEST access token
-      for the realm. This authorizes the OTLP export to
+      The realm INGEST token (referred to elsewhere as <REALM>_INGEST_TOKEN).
+      Create it in the O11y Cloud UI under Settings > Access Tokens; select the
+      token there. This authorizes the OTLP export to
       ``https://ingest.<realm>.observability.splunkcloud.com/v2/trace/otlp``.
   AC_SF_TOKEN
-      An O11y session or API token accepted by the Agent Control gateway
-      (``/ao/agent-control``). A browser session token from a logged-in O11y
-      Cloud tab works; an API access token (Settings > Access Tokens, API
-      scope) is the durable equivalent. Note: token org must be provisioned
-      for Agent Control, or the gateway returns 401/403.
-      (Exact minimum scope not confirmed; use a token with API access.)
+      Your user API access token (the sf-token; referred to elsewhere as
+      <REALM>_SF_TOKEN). Grab it from your profile page (the avatar menu):
+      ``https://app.<realm>.observability.splunkcloud.com/#/userprofile`` and
+      click "Show User API Access Token". It is the same value that appears as
+      the ``sf-token`` / ``X-SF-Token`` header on requests in the browser dev
+      tools Network tab. The token's org must be provisioned for Agent Control,
+      or the gateway (``/ao/agent-control``) returns 401/403.
   SPLUNK_AO_O11Y_API_TOKEN
-      Token used for the spans/search readback. It needs partial_search
-      access. Falls back to AC_SF_TOKEN when unset, which is fine when
-      AC_SF_TOKEN already has search access.
+      Token for the spans/search API readback. In practice the same INGEST
+      token as SPLUNK_AO_O11Y_TOKEN was used here. Falls back to AC_SF_TOKEN
+      when unset.
 
 Use ``agent_control_lab0_setup.py`` first to create and bind the regex steering
 control expected by this test.
