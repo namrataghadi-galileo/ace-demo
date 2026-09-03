@@ -31,8 +31,63 @@ Optional environment variables:
   AC_VERIFY_DELAY_SECONDS      Defaults to 5
   AGENT_CONTROL_OTEL_ENDPOINT  Overrides the realm-derived OTLP endpoint
 
+Where to get the tokens:
+
+  SPLUNK_AO_O11Y_TOKEN
+      O11y Cloud UI, Settings > Access Tokens. Use an INGEST access token
+      for the realm. This authorizes the OTLP export to
+      ``https://ingest.<realm>.observability.splunkcloud.com/v2/trace/otlp``.
+  AC_SF_TOKEN
+      An O11y session or API token accepted by the Agent Control gateway
+      (``/ao/agent-control``). A browser session token from a logged-in O11y
+      Cloud tab works; an API access token (Settings > Access Tokens, API
+      scope) is the durable equivalent. Note: token org must be provisioned
+      for Agent Control, or the gateway returns 401/403.
+      (Exact minimum scope not confirmed; use a token with API access.)
+  SPLUNK_AO_O11Y_API_TOKEN
+      Token used for the spans/search readback. It needs partial_search
+      access. Falls back to AC_SF_TOKEN when unset, which is fine when
+      AC_SF_TOKEN already has search access.
+
 Use ``agent_control_lab0_setup.py`` first to create and bind the regex steering
 control expected by this test.
+
+Note: getting the normalized control span to appear
+====================================================
+
+For the ingestion-normalized ``control`` span to appear in the UI (populated
+Input Text, Triggered / Matched, evaluator fields), the SDK must actually emit
+a control-execution event. That only happens when the agent's control cache is
+populated at ``init`` time. Two conditions are required (verified on rc0 with
+agent-control-sdk 8.5.0 and splunk-ao 0.3.0):
+
+1. Declare the guarded tool as a registration step so ``initAgent`` returns the
+   target-bound control and the SDK caches it:
+
+       agent_control.init(
+           ...,
+           steps=[{"type": "tool", "name": "wire_transfer"}],
+       )
+
+   Without a matching step, ``initAgent`` returns zero controls, the control
+   cache stays empty, and evaluation takes the server-only path that emits no
+   observability event. The control still steers, but no control span is
+   produced.
+
+2. Do NOT pass ``otel_tracer_provider`` to ``agent_control.init(...)``. It is
+   not a recognized ``init`` parameter, so it is stored in ``agent_metadata``
+   and ``initAgent`` registration then fails with "Object of type
+   TracerProvider is not JSON serializable". The failure is logged and
+   swallowed, leaving the control cache empty (same empty-span symptom as #1).
+   The OTEL sink builds its own TracerProvider from
+   ``observability_sink_config``, so an app-side provider is not needed for the
+   control span; span nesting under the tool span is handled by
+   ``set_trace_context_provider``.
+
+Also expect indexing lag: the ``control`` span can take a couple of minutes
+longer to become queryable than the tool and workflow spans in the same trace,
+so raise ``AC_VERIFY_ATTEMPTS`` / ``AC_VERIFY_DELAY_SECONDS`` if readback times
+out.
 """
 
 from __future__ import annotations
