@@ -33,7 +33,9 @@ Optional environment variables:
 
 Where to get the tokens (realm is rc0 in these examples; swap in your realm):
 
-  Creating the access token (Settings > Access Tokens > Create access token):
+  Creating the access token
+  (``https://app.<realm>.observability.splunkcloud.com/#/tokens``, or
+  Settings > Access Tokens > Create access token):
       On the "Name and scope" step, check BOTH:
         - INGEST token
         - API token with roles: include ``power`` and
