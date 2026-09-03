@@ -31,7 +31,8 @@ Optional environment variables:
   AC_VERIFY_DELAY_SECONDS      Defaults to 5
   AGENT_CONTROL_OTEL_ENDPOINT  Overrides the realm-derived OTLP endpoint
 
-Where to get the tokens (realm is rc0 in these examples; swap in your realm):
+Where to get the tokens (replace ``<realm>`` in the URLs below with your realm,
+e.g. ``lab0`` or ``rc0``):
 
   Creating the access token
   (``https://app.<realm>.observability.splunkcloud.com/#/tokens``, or
@@ -69,7 +70,7 @@ Note: getting the normalized control span to appear
 For the ingestion-normalized ``control`` span to appear in the UI (populated
 Input Text, Triggered / Matched, evaluator fields), the SDK must actually emit
 a control-execution event. That only happens when the agent's control cache is
-populated at ``init`` time. Two conditions are required (verified on rc0 with
+populated at ``init`` time. Two conditions are required (verified with
 agent-control-sdk 8.5.0 and splunk-ao 0.3.0):
 
 1. Declare the guarded tool as a registration step so ``initAgent`` returns the
