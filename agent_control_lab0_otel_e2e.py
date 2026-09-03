@@ -15,18 +15,19 @@ Required environment variables:
 
   SPLUNK_AO_REALM              Realm such as ``lab0`` or ``rc0`` (default: lab0)
   SPLUNK_AO_O11Y_TOKEN         OTLP ingest token
-  SPLUNK_AO_O11Y_API_TOKEN     API readback token
   AC_SF_TOKEN                  Agent Control gateway token
   AC_PROJECT_ID                Existing Splunk AO project UUID
   AC_STREAM_ID                 Existing bound agent-stream UUID
 
 Optional environment variables:
 
+  SPLUNK_AO_ENV_FILE           Dotenv configuration file to load after ``.env``
+  SPLUNK_AO_O11Y_API_TOKEN     API readback token; falls back to AC_SF_TOKEN
   AC_GATEWAY                   Defaults to the selected realm's gateway
   AC_AGENT_NAME                Defaults to ``hybim-otel-e2e``
   AC_AMOUNT                    Defaults to 75000
   AC_TO                        Defaults to ``acct-777``
-  AC_VERIFY_ATTEMPTS           Defaults to 12
+  AC_VERIFY_ATTEMPTS           Defaults to 24
   AC_VERIFY_DELAY_SECONDS      Defaults to 5
   AGENT_CONTROL_OTEL_ENDPOINT  Overrides the realm-derived OTLP endpoint
 
@@ -39,6 +40,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
 from uuid import UUID
@@ -51,11 +53,46 @@ def _require(name: str) -> str:
     return value
 
 
+def _load_environment_file() -> None:
+    """Load shared secrets first, then the selected realm configuration."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError as exc:
+        raise SystemExit(
+            'python-dotenv is required. Run: pip install "python-dotenv>=1.0"'
+        ) from exc
+
+    base_file = Path(".env")
+    if base_file.exists():
+        load_dotenv(base_file, override=False)
+
+    selected_file = os.environ.get("SPLUNK_AO_ENV_FILE")
+    if selected_file:
+        path = Path(selected_file)
+        if not path.exists():
+            raise SystemExit(f"SPLUNK_AO_ENV_FILE does not exist: {path}")
+        load_dotenv(path, override=True)
+
+
+def _apply_standard_name_aliases() -> None:
+    aliases = {
+        "AC_SF_TOKEN": "AGENT_CONTROL_API_KEY",
+        "AC_PROJECT_ID": "SPLUNK_AO_PROJECT_ID",
+        "AC_STREAM_ID": "SPLUNK_AO_AGENT_STREAM_ID",
+        "AC_GATEWAY": "AGENT_CONTROL_URL",
+        "AC_AGENT_NAME": "AGENT_CONTROL_AGENT_NAME",
+    }
+    for destination, source in aliases.items():
+        if not os.environ.get(destination) and os.environ.get(source):
+            os.environ[destination] = os.environ[source]
+
+
 def _configure_environment() -> tuple[str, str, str]:
+    _load_environment_file()
+    _apply_standard_name_aliases()
     realm = os.environ.setdefault("SPLUNK_AO_REALM", "lab0")
     required = [
         "SPLUNK_AO_O11Y_TOKEN",
-        "SPLUNK_AO_O11Y_API_TOKEN",
         "AC_SF_TOKEN",
         "AC_PROJECT_ID",
         "AC_STREAM_ID",
@@ -231,14 +268,44 @@ async def _readback(
             "include_all_feedback": False,
         },
     }
-    headers = {"X-SF-Token": _require("SPLUNK_AO_O11Y_API_TOKEN")}
-    attempts = int(os.environ.get("AC_VERIFY_ATTEMPTS", "12"))
+    token_candidates: list[tuple[str, str]] = []
+    for label, token in (
+        ("api_token", os.environ.get("SPLUNK_AO_O11Y_API_TOKEN")),
+        ("sf_token", os.environ.get("AC_SF_TOKEN")),
+    ):
+        if token and token not in {candidate for _, candidate in token_candidates}:
+            token_candidates.append((label, token))
+    attempts = int(os.environ.get("AC_VERIFY_ATTEMPTS", "24"))
     delay_seconds = float(os.environ.get("AC_VERIFY_DELAY_SECONDS", "5"))
     last_records: list[dict[str, Any]] = []
+    selected_auth: tuple[str, str] | None = None
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         for attempt in range(1, attempts + 1):
-            response = await client.post(api_url, headers=headers, json=body)
+            if selected_auth is None:
+                response = None
+                for label, token in token_candidates:
+                    candidate_response = await client.post(
+                        api_url,
+                        headers={"X-SF-Token": token},
+                        json=body,
+                    )
+                    if candidate_response.status_code in {401, 403}:
+                        continue
+                    selected_auth = (label, token)
+                    response = candidate_response
+                    break
+                if response is None:
+                    raise RuntimeError(
+                        "API readback rejected both SPLUNK_AO_O11Y_API_TOKEN and "
+                        "AC_SF_TOKEN. Provide a token with partial_search access."
+                    )
+            else:
+                response = await client.post(
+                    api_url,
+                    headers={"X-SF-Token": selected_auth[1]},
+                    json=body,
+                )
             response.raise_for_status()
             last_records = response.json().get("records", [])
             if any(record.get("type") == "control" for record in last_records):
@@ -248,6 +315,7 @@ async def _readback(
                 print("READBACK PASSED")
                 print(f"  source_otel_trace_id={source_trace_id}")
                 print(f"  backend_trace_id={backend_trace_id}")
+                print(f"  readback_auth={selected_auth[0]}")
                 print(f"  control_span_id={control.get('id')}")
                 print(f"  control_name={control.get('name')}")
                 print(f"  input={control.get('input')}")
@@ -266,6 +334,35 @@ async def _readback(
     )
 
 
+async def _verify_gateway_auth(gateway: str, sf_token: str) -> None:
+    """Fail before evaluation when the O11y gateway rejects the SF token."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(
+                gateway.rstrip("/") + "/health",
+                headers={"X-SF-Token": sf_token},
+            )
+    except httpx.HTTPError as exc:
+        raise SystemExit(
+            f"Cannot reach the Agent Control gateway at {gateway}: {type(exc).__name__}. "
+            "Check VPN connectivity and AC_GATEWAY."
+        ) from exc
+
+    if response.status_code != 200:
+        try:
+            request_id = response.json().get("requestId", "unavailable")
+        except (json.JSONDecodeError, AttributeError):
+            request_id = "unavailable"
+        raise SystemExit(
+            f"Agent Control gateway authentication failed with HTTP {response.status_code}. "
+            "Refresh RC0_SF_TOKEN. If a fresh token still fails, verify that the token's "
+            "organization is provisioned for Agent Control. "
+            f"Gateway request ID: {request_id}"
+        )
+
+
 async def main() -> None:
     realm, gateway, otlp_endpoint = _configure_environment()
     project_id = _require("AC_PROJECT_ID")
@@ -274,6 +371,8 @@ async def main() -> None:
     agent_name = os.environ.get("AC_AGENT_NAME", "hybim-otel-e2e")
     amount = int(os.environ.get("AC_AMOUNT", "75000"))
     to_acct = os.environ.get("AC_TO", "acct-777")
+
+    await _verify_gateway_auth(gateway, sf_token)
 
     import agent_control
     from agent_control import ControlSteerError, control
