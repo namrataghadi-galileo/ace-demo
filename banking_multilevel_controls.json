@@ -1,0 +1,157 @@
+[
+  {
+    "name": "banking-multilevel-deny-trace-sensitive-final",
+    "description": "Deny a trace whose final banking response contains sensitive customer data.",
+    "scenario": "trace",
+    "target_level": "trace",
+    "manual_metadata": {
+      "scorer_id": "<fill-from-galileo-ui:output_pii-scorer-id>",
+      "scorer_version_id": "<fill-from-galileo-ui:output_pii-version-id>"
+    },
+    "definition": {
+      "description": "Deny a trace whose final banking response contains sensitive customer data.",
+      "enabled": true,
+      "execution": "server",
+      "scope": {"step_types": ["trace"], "stages": ["post"], "step_name_regex": "^banking_multilevel_trace_sensitive_final$"},
+      "condition": {
+        "selector": {"path": "*"},
+        "evaluator": {
+          "name": "galileo.luna",
+          "config": {
+            "scorer_label": "output_pii",
+            "scorer_id": "<fill-from-galileo-ui:output_pii-scorer-id>",
+            "scorer_version_id": "<fill-from-galileo-ui:output_pii-version-id>",
+            "operator": "contains",
+            "threshold": "email"
+          }
+        }
+      },
+      "action": {"decision": "deny"},
+      "tags": ["banking-multilevel", "slm", "trace"]
+    }
+  },
+  {
+    "name": "banking-multilevel-deny-session-repeated-bypass",
+    "description": "Deny a session that repeatedly bypasses approval and reports action completion.",
+    "scenario": "session",
+    "target_level": "session",
+    "manual_metadata": {
+      "scorer_id": "<fill-from-galileo-ui:action_completion_luna-scorer-id>",
+      "scorer_version_id": "<fill-from-galileo-ui:action_completion_luna-version-id>"
+    },
+    "definition": {
+      "description": "Deny a session that repeatedly bypasses approval and reports action completion.",
+      "enabled": true,
+      "execution": "sdk",
+      "scope": {"step_types": ["session"], "stages": ["post"], "step_name_regex": "^banking_multilevel_session_repeated_bypass$"},
+      "condition": {
+        "selector": {"path": "*"},
+        "evaluator": {
+          "name": "galileo.luna",
+          "config": {
+            "scorer_label": "action_completion_luna",
+            "scorer_id": "<fill-from-galileo-ui:action_completion_luna-scorer-id>",
+            "scorer_version_id": "<fill-from-galileo-ui:action_completion_luna-version-id>",
+            "operator": "gte",
+            "threshold": 0.5
+          }
+        }
+      },
+      "action": {"decision": "deny"},
+      "tags": ["banking-multilevel", "slm", "session"]
+    }
+  },
+  {
+    "name": "banking-multilevel-deny-llm-sensitive-reply",
+    "description": "Deny an LLM step that selects an inappropriate banking tool.",
+    "scenario": "llm",
+    "target_level": "llm",
+    "manual_metadata": {
+      "scorer_id": "<fill-from-galileo-ui:tool_selection_quality_luna-scorer-id>",
+      "scorer_version_id": "<fill-from-galileo-ui:tool_selection_quality_luna-version-id>"
+    },
+    "definition": {
+      "description": "Deny an LLM step that selects account closure instead of transfer planning.",
+      "enabled": true,
+      "execution": "server",
+      "scope": {"step_types": ["llm"], "stages": ["post"], "step_name_regex": "^banking_multilevel_llm_bad_tool_selection$"},
+      "condition": {
+        "selector": {"path": "*"},
+        "evaluator": {
+          "name": "galileo.luna",
+          "config": {
+            "scorer_label": "tool_selection_quality_luna",
+            "scorer_id": "<fill-from-galileo-ui:tool_selection_quality_luna-scorer-id>",
+            "scorer_version_id": "<fill-from-galileo-ui:tool_selection_quality_luna-version-id>",
+            "operator": "lt",
+            "threshold": 0.5
+          }
+        }
+      },
+      "action": {"decision": "deny"},
+      "tags": ["banking-multilevel", "slm", "llm"]
+    }
+  },
+  {
+    "name": "banking-multilevel-deny-tool-transfer-error",
+    "description": "Deny a tool step whose sandbox transfer function returns an error.",
+    "scenario": "tool",
+    "target_level": "tool",
+    "manual_metadata": {
+      "scorer_id": "<fill-from-galileo-ui:tool_error_rate_luna-scorer-id>",
+      "scorer_version_id": "<fill-from-galileo-ui:tool_error_rate_luna-version-id>"
+    },
+    "definition": {
+      "description": "Deny a tool step whose sandbox transfer function returns an error.",
+      "enabled": true,
+      "execution": "sdk",
+      "scope": {"step_types": ["tool"], "stages": ["post"], "step_name_regex": "^banking_multilevel_tool_transfer_error$"},
+      "condition": {
+        "selector": {"path": "*"},
+        "evaluator": {
+          "name": "galileo.luna",
+          "config": {
+            "scorer_label": "tool_error_rate_luna",
+            "scorer_id": "<fill-from-galileo-ui:tool_error_rate_luna-scorer-id>",
+            "scorer_version_id": "<fill-from-galileo-ui:tool_error_rate_luna-version-id>",
+            "operator": "gte",
+            "threshold": 0.5
+          }
+        }
+      },
+      "action": {"decision": "deny"},
+      "tags": ["banking-multilevel", "slm", "tool"]
+    }
+  },
+  {
+    "name": "banking-multilevel-deny-retriever-irrelevant-policy",
+    "description": "Deny a retriever step when any returned policy chunk is irrelevant.",
+    "scenario": "retriever",
+    "target_level": "retriever",
+    "manual_metadata": {
+      "scorer_id": "<fill-from-galileo-ui:chunk_relevance_luna-scorer-id>",
+      "scorer_version_id": "<fill-from-galileo-ui:chunk_relevance_luna-version-id>"
+    },
+    "definition": {
+      "description": "Deny a retriever step when any returned policy chunk is irrelevant.",
+      "enabled": true,
+      "execution": "sdk",
+      "scope": {"step_types": ["retriever"], "stages": ["post"], "step_name_regex": "^banking_multilevel_retriever_irrelevant_policy$"},
+      "condition": {
+        "selector": {"path": "*"},
+        "evaluator": {
+          "name": "galileo.luna",
+          "config": {
+            "scorer_label": "chunk_relevance_luna",
+            "scorer_id": "<fill-from-galileo-ui:chunk_relevance_luna-scorer-id>",
+            "scorer_version_id": "<fill-from-galileo-ui:chunk_relevance_luna-version-id>",
+            "operator": "contains",
+            "threshold": false
+          }
+        }
+      },
+      "action": {"decision": "deny"},
+      "tags": ["banking-multilevel", "slm", "retriever"]
+    }
+  }
+]

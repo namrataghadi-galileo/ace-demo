@@ -1,0 +1,40 @@
+[project]
+name = "ace-banking-multilevel-example"
+version = "0.1.0"
+description = "Five-level Streamlit banking demo for Agent Control and Orbit runtime scorers"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "agent-control-sdk[galileo,otel]>=8.7.0",
+  "agent-control-models>=8.7.0",
+  "agent-control-engine>=8.7.0",
+  "agent-control-telemetry>=8.7.0",
+  "agent-control-evaluators>=8.7.0",
+  "agent-control-evaluator-galileo>=8.7.0",
+  "galileo[otel]>=2.3.0",
+  "httpx>=0.26.0",
+  "python-dotenv>=1.0.0",
+  "streamlit>=1.36",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0.0", "ruff>=0.11.0"]
+
+[tool.uv]
+package = false
+
+# The default development sync uses the local Agent Control checkout while
+# still talking to the remote DevStack at runtime. Pass `uv sync --no-sources`
+# (and `uv run --no-sources`) to disable every local override and use PyPI.
+[tool.uv.sources]
+agent-control-sdk = { path = "../../agent-control/sdks/python", editable = true }
+agent-control-models = { path = "../../agent-control/models", editable = true }
+agent-control-engine = { path = "../../agent-control/engine", editable = true }
+agent-control-telemetry = { path = "../../agent-control/telemetry", editable = true }
+agent-control-evaluators = { path = "../../agent-control/evaluators/builtin", editable = true }
+agent-control-evaluator-galileo = { path = "../../agent-control/evaluators/contrib/galileo", editable = true }
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
