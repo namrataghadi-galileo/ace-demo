@@ -17,9 +17,10 @@ and `banking_multilevel_streamlit_app.py` in this repo:
      back out again (input=, output=, children=, ...).
 
 This script builds the *same* three scenarios both ways and asserts the
-resulting `Step` trees are equivalent, so a reader can see directly - not
-just read a claim - that the new API produces the same result with less
-code and no intermediate dict:
+resulting `Step` trees are byte-for-byte equivalent - including `context`,
+the one field that has to be populated by hand on both sides - so a reader
+can see directly, not just read a claim, that the new API produces the same
+result with less code and no intermediate dict:
 
   - "trace":   one trace with retriever + tool + llm children
                (mirrors banking_multilevel_cases.trace_record)
@@ -132,22 +133,44 @@ def new_way_trace(inputs: BankingScenarioInput | None = None) -> Step:
         input={"request": inputs.request, "customer_id": "cust-demo-001"},
     ) as trace:
         # .child() with an explicit output: for a shape .call() can't infer
-        # on its own (here, a plain query string rather than a bound-args dict).
+        # on its own (here, a plain query string rather than a bound-args dict),
+        # and because this leaf also carries caller-supplied `context`, which
+        # .call()'s auto-capture does not accept.
         with trace.child(
-            "retriever", "banking_multilevel_trace_policy_lookup", input=inputs.policy_query
+            "retriever",
+            "banking_multilevel_trace_policy_lookup",
+            input=inputs.policy_query,
+            context={
+                "metadata": {
+                    "executed": True,
+                    "executed_function": "search_policy_documents",
+                    "partitions": ["wire"],
+                    "external_call": False,
+                }
+            },
         ) as retrieval:
             retrieval.output = search_policy_documents(
                 inputs.policy_query, partitions=("wire",), limit=1
             )
 
-        # .call(): runs the real function and records it in one step - no
-        # StepExecution wrapper, no separate record dict.
-        account = trace.call(
-            sandbox.lookup_account,
-            account_id=inputs.account_id,
-            step_type="tool",
-            step_name="banking_multilevel_trace_account_lookup",
-        )
+        # .call() would run this in one line (see _new_way_session_turn's old
+        # revision), but it has no way to attach caller-supplied `context` -
+        # _create_evaluation_payload() never sets that key. Matching the old
+        # way's per-leaf metadata here means using .child() instead.
+        with trace.child(
+            "tool",
+            "banking_multilevel_trace_account_lookup",
+            input={"account_id": inputs.account_id},
+            context={
+                "metadata": {
+                    "executed": True,
+                    "executed_function": "BankingSandbox.lookup_account",
+                    "external_call": False,
+                }
+            },
+        ) as account_step:
+            account_step.output = sandbox.lookup_account(account_id=inputs.account_id)
+        account = account_step.output
 
         with trace.child(
             "llm",
@@ -157,6 +180,15 @@ def new_way_trace(inputs: BankingScenarioInput | None = None) -> Step:
                 {"role": "user", "content": inputs.request},
             ],
             tools=deepcopy(TOOL_DEFINITIONS),
+            context={
+                "metadata": {
+                    "executed": True,
+                    "executed_function": "run_banking_model",
+                    "model": "deterministic-local-banking-model",
+                    "behavior": "sensitive_transfer_plan",
+                    "external_call": False,
+                }
+            },
         ) as model:
             model.output = run_banking_model(
                 inputs.request,
@@ -174,6 +206,21 @@ def new_way_trace(inputs: BankingScenarioInput | None = None) -> Step:
             )
 
         trace.output = {"status": "planned", "message": model.output["content"]}
+        # Set after the children exist, same as the old way: trace_record()
+        # only knows each child's executed_function once it has built them.
+        trace.context = {
+            "metadata": {
+                "executed": True,
+                "executed_function": "trace_record",
+                "child_functions": [
+                    "search_policy_documents",
+                    "BankingSandbox.lookup_account",
+                    "run_banking_model",
+                ],
+                "scenario": scenario.key,
+                "external_call": False,
+            }
+        }
 
     return trace.build()
 
@@ -193,7 +240,18 @@ def _new_way_session_turn(
     manager_approved: bool,
     bypass_approval: bool,
 ) -> dict[str, Any]:
-    with session.child("trace", trace_name, input={"request": request}) as trace:
+    with session.child(
+        "trace",
+        trace_name,
+        input={"request": request},
+        context={
+            "metadata": {
+                "executed": True,
+                "executed_function": "_execute_session_turn",
+                "external_call": False,
+            }
+        },
+    ) as trace:
         with trace.child(
             "llm",
             llm_name,
@@ -202,6 +260,15 @@ def _new_way_session_turn(
                 {"role": "user", "content": request},
             ],
             tools=deepcopy(TOOL_DEFINITIONS),
+            context={
+                "metadata": {
+                    "executed": True,
+                    "executed_function": "run_banking_model",
+                    "model": "deterministic-local-banking-model",
+                    "behavior": behavior,
+                    "external_call": False,
+                }
+            },
         ) as model:
             model.output = run_banking_model(
                 request,
@@ -213,16 +280,38 @@ def _new_way_session_turn(
                 },
             )
 
-        transfer = trace.call(
-            sandbox.submit_transfer,
-            account_id=account_id,
-            amount=amount,
-            recipient=recipient,
-            manager_approved=manager_approved,
-            bypass_approval=bypass_approval,
-            step_type="tool",
-            step_name=tool_name,
-        )
+        # Same tradeoff as the trace scenario's account lookup: .call() can't
+        # attach `context`, so the sandbox call moves into .child() with an
+        # explicit output. The transaction count context is set only after
+        # submit_transfer() runs, since that is when it becomes known - same
+        # as the old way's execute_transfer().
+        with trace.child(
+            "tool",
+            tool_name,
+            input={
+                "account_id": account_id,
+                "amount": amount,
+                "recipient": recipient,
+                "manager_approved": manager_approved,
+                "bypass_approval": bypass_approval,
+            },
+        ) as transfer_step:
+            transfer_step.output = sandbox.submit_transfer(
+                account_id=account_id,
+                amount=amount,
+                recipient=recipient,
+                manager_approved=manager_approved,
+                bypass_approval=bypass_approval,
+            )
+            transfer_step.context = {
+                "metadata": {
+                    "executed": True,
+                    "executed_function": "BankingSandbox.submit_transfer",
+                    "sandbox_transaction_count": len(sandbox.transactions),
+                    "external_call": False,
+                }
+            }
+        transfer = transfer_step.output
         trace.output = deepcopy(transfer)
     return transfer
 
@@ -289,6 +378,17 @@ def new_way_session(inputs: BankingScenarioInput | None = None) -> Step:
             "attempts": 2,
             "completed_transactions": len(completed),
         }
+        # Set after both turns, same as the old way: session_record() only
+        # knows the final transaction count once both turns have run.
+        session.context = {
+            "metadata": {
+                "executed": True,
+                "executed_function": "session_record",
+                "sandbox_transaction_count": len(sandbox.transactions),
+                "scenario": scenario.key,
+                "external_call": False,
+            }
+        }
 
     return session.build()
 
@@ -312,19 +412,8 @@ def new_way_empty_trace(*, explicit_empty_children: bool) -> Step:
 # --------------------------------------------------------------------------
 
 
-def _drop_context(value: Any) -> Any:
-    """Strip `context` (caller-defined bookkeeping, e.g. `executed_function`
-    metadata) so the comparison focuses on fields that affect evaluation:
-    type, name, input, output, tools, and children."""
-    if isinstance(value, dict):
-        return {key: _drop_context(val) for key, val in value.items() if key != "context"}
-    if isinstance(value, list):
-        return [_drop_context(item) for item in value]
-    return value
-
-
 def comparable(step: Step) -> dict[str, Any]:
-    return _drop_context(step.model_dump(mode="json"))
+    return step.model_dump(mode="json")
 
 
 def print_equivalence(label: str, old_step: Step, new_step: Step) -> bool:
