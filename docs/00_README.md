@@ -12,6 +12,7 @@ Read these in order. The numbers in the filenames are the reading order.
 - 07_scope_and_open_items.md: GA scope, version notes, and open items.
 - 08_troubleshooting.md: the errors a first-time runner hits, and what they actually mean.
 - 09_diagrams.md: four diagrams (deployment, auth hot path, the two SDKs, the run flow).
+- 10_runtime_behavior.md: how the SDK and server behave at runtime (evaluation, failure modes, cache refresh, span-to-chart rollup, framework integration, multi-tenancy, timeouts).
 
 Scripts (repo root):
 - agent_control_lab0_setup.py: run once to create the project, stream, and control.
