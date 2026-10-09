@@ -132,10 +132,10 @@ def new_way_trace(inputs: BankingScenarioInput | None = None) -> Step:
         scenario.step_name,
         input={"request": inputs.request, "customer_id": "cust-demo-001"},
     ) as trace:
-        # .child() with an explicit output: for a shape .call() can't infer
-        # on its own (here, a plain query string rather than a bound-args dict),
-        # and because this leaf also carries caller-supplied `context`, which
-        # .call()'s auto-capture does not accept.
+        # .child() with an explicit output: step_context= could carry this
+        # leaf's metadata, but .call()'s auto-derived `input` would be a
+        # bound-args dict ({"query": ..., "partitions": ..., "limit": ...}),
+        # not the bare query string the old way's record uses as `input`.
         with trace.child(
             "retriever",
             "banking_multilevel_trace_policy_lookup",
@@ -153,24 +153,25 @@ def new_way_trace(inputs: BankingScenarioInput | None = None) -> Step:
                 inputs.policy_query, partitions=("wire",), limit=1
             )
 
-        # .call() would run this in one line (see _new_way_session_turn's old
-        # revision), but it has no way to attach caller-supplied `context` -
-        # _create_evaluation_payload() never sets that key. Matching the old
-        # way's per-leaf metadata here means using .child() instead.
-        with trace.child(
-            "tool",
-            "banking_multilevel_trace_account_lookup",
-            input={"account_id": inputs.account_id},
-            context={
+        # .call(): runs the real function and records it in one step. Its
+        # auto-derived `input` (the bound call arguments) already matches the
+        # old way's tool_input dict here, and step_context= (not context=, to
+        # avoid colliding with a same-named kwarg on the wrapped function -
+        # not an issue for this particular function, but a general hazard)
+        # attaches the same per-leaf metadata the old way sets by hand.
+        account = trace.call(
+            sandbox.lookup_account,
+            account_id=inputs.account_id,
+            step_type="tool",
+            step_name="banking_multilevel_trace_account_lookup",
+            step_context={
                 "metadata": {
                     "executed": True,
                     "executed_function": "BankingSandbox.lookup_account",
                     "external_call": False,
                 }
             },
-        ) as account_step:
-            account_step.output = sandbox.lookup_account(account_id=inputs.account_id)
-        account = account_step.output
+        )
 
         with trace.child(
             "llm",
@@ -280,11 +281,12 @@ def _new_way_session_turn(
                 },
             )
 
-        # Same tradeoff as the trace scenario's account lookup: .call() can't
-        # attach `context`, so the sandbox call moves into .child() with an
-        # explicit output. The transaction count context is set only after
-        # submit_transfer() runs, since that is when it becomes known - same
-        # as the old way's execute_transfer().
+        # Unlike the trace scenario's account lookup, this leaf can't move to
+        # .call() even with step_context=: sandbox_transaction_count is only
+        # known after submit_transfer() runs (it reads len(sandbox.transactions)
+        # post-call, same as the old way's execute_transfer()), but .call()'s
+        # step_context is evaluated eagerly, before the call happens. .child()
+        # stays necessary here because its context can be set after output.
         with trace.child(
             "tool",
             tool_name,
