@@ -132,10 +132,6 @@ def new_way_trace(inputs: BankingScenarioInput | None = None) -> Step:
         scenario.step_name,
         input={"request": inputs.request, "customer_id": "cust-demo-001"},
     ) as trace:
-        # .child() with an explicit output: step_context= could carry this
-        # leaf's metadata, but .call()'s auto-derived `input` would be a
-        # bound-args dict ({"query": ..., "partitions": ..., "limit": ...}),
-        # not the bare query string the old way's record uses as `input`.
         with trace.child(
             "retriever",
             "banking_multilevel_trace_policy_lookup",
@@ -153,12 +149,6 @@ def new_way_trace(inputs: BankingScenarioInput | None = None) -> Step:
                 inputs.policy_query, partitions=("wire",), limit=1
             )
 
-        # .call(): runs the real function and records it in one step. Its
-        # auto-derived `input` (the bound call arguments) already matches the
-        # old way's tool_input dict here, and step_context= (not context=, to
-        # avoid colliding with a same-named kwarg on the wrapped function -
-        # not an issue for this particular function, but a general hazard)
-        # attaches the same per-leaf metadata the old way sets by hand.
         account = trace.call(
             sandbox.lookup_account,
             account_id=inputs.account_id,
