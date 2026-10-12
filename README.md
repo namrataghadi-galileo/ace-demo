@@ -4,6 +4,13 @@ Standalone demo app for exercising real Agent Control `ControlExecutionEvent`s t
 
 For a step-by-step Forward Deploy Engineer runbook, including manual Console setup, devstack routes, commands, and troubleshooting, see [`FDE_RUNBOOK.md`](FDE_RUNBOOK.md).
 
+For the deterministic banking workflow that independently exercises trace,
+session, LLM, tool, and retriever records through Agent Control and Orbit
+runtime scorers, see
+[`docs/11_banking_multilevel_runtime_e2e.md`](docs/11_banking_multilevel_runtime_e2e.md).
+It uses a separate Streamlit app and a separate manual-control catalog, leaving
+the existing banking controls unchanged.
+
 ## What This Demo Proves
 
 - Agent Control is installed and running as a remote service in the Galileo cluster.

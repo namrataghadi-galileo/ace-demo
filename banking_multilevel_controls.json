@@ -76,7 +76,7 @@
       "execution": "server",
       "scope": {"step_types": ["llm"], "stages": ["post"], "step_name_regex": "^banking_multilevel_llm_bad_tool_selection$"},
       "condition": {
-        "selector": {"path": "*"},
+        "selector": {"path": "input"},
         "evaluator": {
           "name": "galileo.luna",
           "config": {
@@ -107,7 +107,7 @@
       "execution": "sdk",
       "scope": {"step_types": ["tool"], "stages": ["post"], "step_name_regex": "^banking_multilevel_tool_transfer_error$"},
       "condition": {
-        "selector": {"path": "*"},
+        "selector": {"path": "output"},
         "evaluator": {
           "name": "galileo.luna",
           "config": {

@@ -32,6 +32,7 @@ agent-control-engine = { path = "../../agent-control/engine", editable = true }
 agent-control-telemetry = { path = "../../agent-control/telemetry", editable = true }
 agent-control-evaluators = { path = "../../agent-control/evaluators/builtin", editable = true }
 agent-control-evaluator-galileo = { path = "../../agent-control/evaluators/contrib/galileo", editable = true }
+galileo = { path = "../../galileo-python", editable = true }
 
 [tool.ruff]
 line-length = 100
