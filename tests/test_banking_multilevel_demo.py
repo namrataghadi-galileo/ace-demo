@@ -621,9 +621,14 @@ def test_scorer_response_view_keeps_allow_score_and_status() -> None:
     }
 
 
-def test_banking_project_uses_local_agent_control_sources() -> None:
+def test_banking_project_uses_published_agent_control_and_local_galileo() -> None:
     sources = _dependency_sources()
-    assert all("/code/agent-control/" in path for path in sources.values())
+    assert all(
+        "/code/agent-control/" not in path
+        for name, path in sources.items()
+        if name.startswith("agent_control")
+    )
+    assert "/code/galileo-python/" in sources["galileo"]
 
 
 def test_streamlit_uses_reusable_recorder_workflows_not_comparison_demo() -> None:
@@ -633,13 +638,15 @@ def test_streamlit_uses_reusable_recorder_workflows_not_comparison_demo() -> Non
     assert "step_recorder_vs_manual_demo" not in app_source
 
 
-def test_local_dependency_override_and_no_sources_escape_hatch_are_documented() -> None:
+def test_dependency_sources_and_no_sources_escape_hatch_are_documented() -> None:
     pyproject = (ROOT / "banking-multilevel" / "pyproject.toml").read_text()
     docs = (ROOT / "docs" / "11_banking_multilevel_runtime_e2e.md").read_text()
     assert "[tool.uv.sources]" in pyproject
-    assert "../../agent-control/sdks/python" in pyproject
-    assert "../../agent-control/evaluators/contrib/galileo" in pyproject
+    assert '"agent-control-sdk[galileo,otel]==8.13.0"' in pyproject
+    assert "../../agent-control/" not in pyproject
+    assert '../../galileo-python"' in pyproject
     assert '"galileo[otel]>=2.3.0"' in pyproject
+    assert "No local Agent Control checkout is required" in docs
     assert "--no-sources" in docs
     assert "AGENT_CONTROL_URL" in docs
 

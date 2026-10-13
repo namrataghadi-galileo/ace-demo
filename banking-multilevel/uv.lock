@@ -18,12 +18,7 @@ name = "ace-banking-multilevel-example"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "agent-control-engine" },
-    { name = "agent-control-evaluator-galileo" },
-    { name = "agent-control-evaluators" },
-    { name = "agent-control-models" },
     { name = "agent-control-sdk", extra = ["galileo", "otel"] },
-    { name = "agent-control-telemetry" },
     { name = "galileo", extra = ["otel"] },
     { name = "httpx" },
     { name = "python-dotenv" },
@@ -38,12 +33,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agent-control-engine", editable = "../../agent-control/engine" },
-    { name = "agent-control-evaluator-galileo", editable = "../../agent-control/evaluators/contrib/galileo" },
-    { name = "agent-control-evaluators", editable = "../../agent-control/evaluators/builtin" },
-    { name = "agent-control-models", editable = "../../agent-control/models" },
-    { name = "agent-control-sdk", extras = ["galileo", "otel"], editable = "../../agent-control/sdks/python" },
-    { name = "agent-control-telemetry", editable = "../../agent-control/telemetry" },
+    { name = "agent-control-sdk", extras = ["galileo", "otel"], specifier = "==8.13.0" },
     { name = "galileo", extras = ["otel"], editable = "../../galileo-python" },
     { name = "httpx", specifier = ">=0.26.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
@@ -57,35 +47,9 @@ dev = [
 ]
 
 [[package]]
-name = "agent-control-engine"
-version = "8.12.0"
-source = { editable = "../../agent-control/engine" }
-dependencies = [
-    { name = "agent-control-evaluators" },
-    { name = "agent-control-models" },
-    { name = "google-re2" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "agent-control-evaluators", editable = "../../agent-control/evaluators/builtin" },
-    { name = "agent-control-models", editable = "../../agent-control/models" },
-    { name = "google-re2", specifier = ">=1.1" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.8.0" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.23.0" },
-    { name = "pytest-cov", specifier = ">=4.0.0" },
-    { name = "ruff", specifier = ">=0.1.0" },
-]
-
-[[package]]
 name = "agent-control-evaluator-galileo"
-version = "8.12.0"
-source = { editable = "../../agent-control/evaluators/contrib/galileo" }
+version = "8.13.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agent-control-evaluators" },
     { name = "agent-control-models" },
@@ -93,29 +57,15 @@ dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "agent-control-engine", marker = "extra == 'dev'", editable = "../../agent-control/engine" },
-    { name = "agent-control-evaluators", editable = "../../agent-control/evaluators/builtin" },
-    { name = "agent-control-models", editable = "../../agent-control/models" },
-    { name = "agent-control-sdk", marker = "extra == 'dev'", editable = "../../agent-control/sdks/python" },
-    { name = "agent-control-telemetry", marker = "extra == 'dev'", editable = "../../agent-control/telemetry" },
-    { name = "galileo-core", specifier = ">=4.4.0,<5.0.0" },
-    { name = "httpx", specifier = ">=0.24.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
-    { name = "pydantic", specifier = ">=2.12.4" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/7d/8f/216cf045483085c8ea32269a4a0a26abfe6c60b244b110bc94955976f12b/agent_control_evaluator_galileo-8.13.0.tar.gz", hash = "sha256:43d0826f95c229eee376482f2224712f9ae8fe3916e8321ca8129cfbe4f40c05", size = 43351, upload-time = "2026-10-13T16:30:50.986Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/1b/a5c99ebb1bb7d366de8624870a75a6703cec50fd48181fed2d15b8fa94fd/agent_control_evaluator_galileo-8.13.0-py3-none-any.whl", hash = "sha256:0e9f09b75c8dbc2bea5160123c081dc41f235e393f73410caefd8c01e9b8fad0", size = 23182, upload-time = "2026-10-13T16:30:46.972Z" },
 ]
-provides-extras = ["dev"]
 
 [[package]]
 name = "agent-control-evaluators"
-version = "8.12.0"
-source = { editable = "../../agent-control/evaluators/builtin" }
+version = "8.13.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agent-control-models" },
     { name = "google-re2" },
@@ -123,52 +73,29 @@ dependencies = [
     { name = "pydantic" },
     { name = "sqlglot", extra = ["c"] },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "agent-control-evaluator-budget", marker = "extra == 'budget'", editable = "../../agent-control/evaluators/contrib/budget" },
-    { name = "agent-control-evaluator-cisco", marker = "extra == 'cisco'", editable = "../../agent-control/evaluators/contrib/cisco" },
-    { name = "agent-control-evaluator-defenseclaw", marker = "extra == 'defenseclaw'", editable = "../../agent-control/evaluators/contrib/defenseclaw" },
-    { name = "agent-control-evaluator-galileo", marker = "extra == 'galileo'", editable = "../../agent-control/evaluators/contrib/galileo" },
-    { name = "agent-control-models", editable = "../../agent-control/models" },
-    { name = "google-re2", specifier = ">=1.1" },
-    { name = "jsonschema", specifier = ">=4.0.0" },
-    { name = "pydantic", specifier = ">=2.12.4" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
-    { name = "sqlglot", extras = ["c"], specifier = ">=30.11.0,<30.12.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/b7/44/a17ab9e5fa08f790f74e8fc9d7415be2dce83e069fa4ac044e7be74b893d/agent_control_evaluators-8.13.0.tar.gz", hash = "sha256:ec332f3e9f36b45a4836777fbd36d6e2f2c992502d0b9b0983ab5712402acde9", size = 53223, upload-time = "2026-10-13T16:30:51.791Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5b/61/d28e78256df9253bafd3159a2609fdcf57d5c7d4f999f333bad72323d2eb/agent_control_evaluators-8.13.0-py3-none-any.whl", hash = "sha256:b4b0bc0ef9df39a38f313de14da2d3f94dbf17a6670f181efc26e27976aa712a", size = 35798, upload-time = "2026-10-13T16:30:47.898Z" },
 ]
-provides-extras = ["galileo", "budget", "cisco", "defenseclaw", "dev"]
 
 [[package]]
 name = "agent-control-models"
-version = "8.12.0"
-source = { editable = "../../agent-control/models" }
+version = "8.13.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-re2" },
     { name = "jsonschema" },
     { name = "pydantic" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "google-re2", specifier = ">=1.1" },
-    { name = "jsonschema", specifier = ">=4.0.0" },
-    { name = "pydantic", specifier = ">=2.12.4" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.8.0" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-cov", specifier = ">=4.0.0" },
-    { name = "ruff", specifier = ">=0.1.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/7c/ec/d784612dd460bb9b7fa833c87aa5a5ec0e8f6c84df755cc4b70e02840df4/agent_control_models-8.13.0.tar.gz", hash = "sha256:9fbfe9b455c8b2dd2cf2c2e1a8876a8d4798fcb1732eee28bd7193f128eeabc2", size = 34236, upload-time = "2026-10-13T16:29:00.452Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/5f/3df2016d4a80949d3c9dd774ab29f09b81a3f66b9e4c02352fee7a78147b/agent_control_models-8.13.0-py3-none-any.whl", hash = "sha256:bfe6ccdb1a8114d0df7eda80789dc22a182f2efaa176f174acb9bf65fbc0b636", size = 33420, upload-time = "2026-10-13T16:28:59.302Z" },
 ]
 
 [[package]]
 name = "agent-control-sdk"
-version = "8.12.0"
-source = { editable = "../../agent-control/sdks/python" }
+version = "8.13.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agent-control-evaluators" },
     { name = "docstring-parser" },
@@ -177,6 +104,10 @@ dependencies = [
     { name = "jsonschema" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/12/82/0cb8dc1ece08c1cf22d8e8982c149cc10ca49ddb45dcccf432f81ce74a86/agent_control_sdk-8.13.0.tar.gz", hash = "sha256:2f03003305647a2bbad1b67a7411a812f61aaa73547b46fff1bc91938f2aab7c", size = 222913, upload-time = "2026-10-13T16:31:26.114Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c4/2b/63662ff15d1ebcd88c1d030bfb39e910dafd6df1c5d25dcc93820636ea48/agent_control_sdk-8.13.0-py3-none-any.whl", hash = "sha256:ca04d6005732e7514522ffbcaeb6ef4607e0ed490c7436d14bdd7d9ac5916dd0", size = 143263, upload-time = "2026-10-13T16:31:24.768Z" },
 ]
 
 [package.optional-dependencies]
@@ -187,57 +118,6 @@ otel = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "agent-control-evaluator-galileo", marker = "extra == 'galileo'", editable = "../../agent-control/evaluators/contrib/galileo" },
-    { name = "agent-control-evaluators", editable = "../../agent-control/evaluators/builtin" },
-    { name = "docstring-parser", specifier = ">=0.15" },
-    { name = "google-adk", marker = "extra == 'google-adk'", specifier = ">=1.0.0" },
-    { name = "google-re2", specifier = ">=1.1" },
-    { name = "httpx", specifier = ">=0.26.0" },
-    { name = "jsonschema", specifier = ">=4.0.0" },
-    { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.24.0" },
-    { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'otel'", specifier = ">=1.24.0" },
-    { name = "opentelemetry-sdk", marker = "extra == 'otel'", specifier = ">=1.24.0" },
-    { name = "pydantic", specifier = ">=2.5.0" },
-    { name = "pydantic-settings", specifier = ">=2.0.0" },
-    { name = "strands-agents", marker = "extra == 'strands-agents'", specifier = ">=1.26.0" },
-]
-provides-extras = ["strands-agents", "google-adk", "otel", "galileo"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "agent-control-engine", editable = "../../agent-control/engine" },
-    { name = "agent-control-evaluators", editable = "../../agent-control/evaluators/builtin" },
-    { name = "agent-control-models", editable = "../../agent-control/models" },
-    { name = "agent-control-telemetry", editable = "../../agent-control/telemetry" },
-    { name = "mypy", specifier = ">=1.8.0" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.23.0" },
-    { name = "pytest-cov", specifier = ">=4.0.0" },
-    { name = "ruff", specifier = ">=0.1.0" },
-    { name = "strands-agents", specifier = ">=1.26.0" },
-]
-
-[[package]]
-name = "agent-control-telemetry"
-version = "8.12.0"
-source = { editable = "../../agent-control/telemetry" }
-dependencies = [
-    { name = "agent-control-models" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "agent-control-models", editable = "../../agent-control/models" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "agent-control-models", editable = "../../agent-control/models" },
-    { name = "mypy", specifier = ">=1.8.0" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "ruff", specifier = ">=0.1.0" },
 ]
 
 [[package]]

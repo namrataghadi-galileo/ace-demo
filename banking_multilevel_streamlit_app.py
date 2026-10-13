@@ -428,6 +428,7 @@ def _dependency_sources() -> dict[str, str]:
     import agent_control
     import agent_control_evaluator_galileo
     import agent_control_models
+    import galileo
 
     return {
         "agent_control": str(Path(agent_control.__file__).resolve()),
@@ -435,6 +436,7 @@ def _dependency_sources() -> dict[str, str]:
             Path(agent_control_evaluator_galileo.__file__).resolve()
         ),
         "agent_control_models": str(Path(agent_control_models.__file__).resolve()),
+        "galileo": str(Path(galileo.__file__).resolve()),
     }
 
 

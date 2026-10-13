@@ -138,23 +138,23 @@ export AGENT_CONTROL_API_KEY_HEADER="Galileo-API-Key"
 `AGENT_CONTROL_TARGET_ID` must be the actual log-stream ID, not its display
 name. Credentials remain in environment variables only.
 
-## Local Agent Control and Galileo SDK overrides
+## Published Agent Control and local Galileo SDK
 
-The dedicated `banking-multilevel/pyproject.toml` resolves every relevant
-Agent Control package from the sibling `/Users/namratag/code/agent-control`
-checkout. It also resolves `galileo` from the sibling
-`/Users/namratag/code/galileo-python` checkout. These overrides are required
-while testing the unreleased StepRecorder and control-span telemetry changes:
+The dedicated `banking-multilevel/pyproject.toml` installs
+`agent-control-sdk[galileo,otel]==8.13.0` and its published dependencies from
+PyPI. That release supplies the trace/session StepRecorder behavior used by
+this app. No local Agent Control checkout is required.
 
-- Agent Control supplies the trace/session StepRecorder behavior used by this
-  app and sends evaluations to the remote Agent Control service.
+The project still resolves `galileo` from the sibling
+`/Users/namratag/code/galileo-python` checkout because its control-span changes
+have not been published yet:
+
 - Galileo Python accepts `retriever_call`, `trace_call`, and `session_call`
   control spans. The latest PyPI release (`galileo==2.6.0`) supports only
   `llm_call` and `tool_call`, so it cannot replace the local checkout yet.
 
-Both dependencies are local client libraries only. The client still talks to
-`AGENT_CONTROL_URL` in the DevStack; this does not start or modify a local
-Agent Control server, and Orbit stays in the DevStack.
+These are client dependencies only. The client still talks to
+`AGENT_CONTROL_URL` in the DevStack, and Orbit stays in the DevStack.
 
 ```bash
 cd /Users/namratag/code/ace-demo
@@ -163,11 +163,9 @@ UV_NO_CONFIG=1 uv run --project banking-multilevel --default-index https://pypi.
   streamlit run banking_multilevel_streamlit_app.py
 ```
 
-To disable all local source overrides for normal usage, add `--no-sources` to
-both commands. That makes uv resolve both Agent Control and Galileo Python from
-PyPI instead of the sibling checkouts. Do not use this mode for the trace,
-session, or retriever control-span tests until compatible releases are
-published:
+Adding `--no-sources` disables the remaining local Galileo override. Do not use
+this mode for trace, session, or retriever control-span tests until a compatible
+Galileo Python release is published:
 
 ```bash
 UV_NO_CONFIG=1 uv sync --project banking-multilevel --no-sources --default-index https://pypi.org/simple
