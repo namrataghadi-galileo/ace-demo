@@ -17,8 +17,10 @@ dev = ["pytest>=8.0.0", "ruff>=0.11.0"]
 [tool.uv]
 package = false
 
-# Agent Control 8.13.0 comes from PyPI. Galileo remains editable until a PyPI
-# release includes retriever_call, trace_call, and session_call control spans.
+# Agent Control 8.13.0 comes from PyPI. The local galileo-python checkout is
+# temporarily required for retriever_call, trace_call, and session_call control
+# spans. Once those changes are published, pin `galileo[otel]` above to that
+# PyPI version, remove this path override, and regenerate uv.lock.
 [tool.uv.sources]
 galileo = { path = "../../galileo-python", editable = true }
 
