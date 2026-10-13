@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 import re
+import sys
 from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
@@ -27,6 +28,8 @@ from banking_multilevel_cases import (
     BankingScenario,
     BankingScenarioInput,
     default_scenario_input,
+    recorder_session_step,
+    recorder_trace_step,
     run_banking_model,
     scenario_record,
     search_policy_documents,
@@ -47,7 +50,9 @@ DEFAULT_AGENT_NAME = "banking-multilevel-runtime-demo"
 
 def _environment() -> dict[str, str]:
     values = {
-        "AGENT_CONTROL_URL": os.environ.get("AGENT_CONTROL_URL", DEFAULT_AGENT_CONTROL_URL),
+        "AGENT_CONTROL_URL": os.environ.get(
+            "AGENT_CONTROL_URL", DEFAULT_AGENT_CONTROL_URL
+        ),
         "AGENT_CONTROL_AGENT_NAME": os.environ.get(
             "AGENT_CONTROL_AGENT_NAME", DEFAULT_AGENT_NAME
         ),
@@ -59,11 +64,7 @@ def _environment() -> dict[str, str]:
         ),
         "GALILEO_API_KEY": os.environ.get("GALILEO_API_KEY", ""),
     }
-    missing = [
-        name
-        for name in ("GALILEO_API_KEY",)
-        if not values[name]
-    ]
+    missing = [name for name in ("GALILEO_API_KEY",) if not values[name]]
     if missing:
         raise RuntimeError("Set required environment values: " + ", ".join(missing))
     return values
@@ -201,7 +202,11 @@ def _verify_manual_controls(
 
 
 def _value(item: Any, name: str, default: Any = None) -> Any:
-    return item.get(name, default) if isinstance(item, dict) else getattr(item, name, default)
+    return (
+        item.get(name, default)
+        if isinstance(item, dict)
+        else getattr(item, name, default)
+    )
 
 
 def _summarize_matches(items: Any) -> list[dict[str, Any]]:
@@ -224,7 +229,8 @@ def _summarize_matches(items: Any) -> list[dict[str, Any]]:
 
 def _matches_control(name: Any, scenario: BankingScenario) -> bool:
     return isinstance(name, str) and (
-        name == scenario.control_name or name.startswith(f"{scenario.control_name}-clone-")
+        name == scenario.control_name
+        or name.startswith(f"{scenario.control_name}-clone-")
     )
 
 
@@ -238,7 +244,9 @@ def build_agent_control_step(record: dict[str, Any]):
         if record_type == "retriever"
         else record.get("input")
     )
-    child_records = record.get("traces") if record_type == "session" else record.get("spans")
+    child_records = (
+        record.get("traces") if record_type == "session" else record.get("spans")
+    )
     children = (
         [build_agent_control_step(child) for child in child_records]
         if isinstance(child_records, list)
@@ -258,16 +266,47 @@ def build_agent_control_step(record: dict[str, Any]):
     )
 
 
-def canonical_record_preview(scenario: BankingScenario, record: dict[str, Any]) -> dict[str, Any]:
+def record_from_agent_control_step(step: Any) -> dict[str, Any]:
+    """Convert a recorder-built Step into the record shape used for Galileo logging."""
+    record: dict[str, Any] = {
+        "type": step.type,
+        "name": step.name,
+        "output": step.output,
+    }
+    record["query" if step.type == "retriever" else "input"] = step.input
+    if step.tools is not None:
+        record["tools"] = step.tools
+    if step.ground_truth is not None:
+        record["ground_truth"] = step.ground_truth
+    if isinstance(step.context, dict):
+        metadata = step.context.get("metadata")
+        if isinstance(metadata, dict):
+            record["metadata"] = metadata
+    if step.children is not None:
+        child_key = "traces" if step.type == "session" else "spans"
+        record[child_key] = [
+            record_from_agent_control_step(child) for child in step.children
+        ]
+    return record
+
+
+def canonical_record_preview(
+    scenario: BankingScenario, record: dict[str, Any]
+) -> dict[str, Any]:
     """Build the canonical Galileo record that the local evaluator sends to Orbit."""
     from agent_control_evaluator_galileo import build_galileo_record
+
     step = build_agent_control_step(record)
     canonical = build_galileo_record(step.model_dump(mode="json"), step)
     return canonical.model_dump(mode="json", exclude_none=True)
 
 
 def _json_text(value: Any) -> str:
-    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return (
+        value
+        if isinstance(value, str)
+        else json.dumps(value, ensure_ascii=False, sort_keys=True)
+    )
 
 
 def scorer_invoke_request_preview(
@@ -342,7 +381,9 @@ def scorer_invoke_request_preview(
     }
 
 
-def _scorer_response_from_evaluation(item: dict[str, Any] | None) -> dict[str, Any] | None:
+def _scorer_response_from_evaluation(
+    item: dict[str, Any] | None,
+) -> dict[str, Any] | None:
     if item is None:
         return None
     metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
@@ -376,7 +417,9 @@ def _scorer_response_from_evaluation(item: dict[str, Any] | None) -> dict[str, A
         "message": item.get("message"),
         "error": error,
         "transport_status": transport_status,
-        "scorer_response": {key: metadata.get(key) for key in response_keys if key in metadata},
+        "scorer_response": {
+            key: metadata.get(key) for key in response_keys if key in metadata
+        },
         "note": "These are the scorer response fields propagated by the Galileo evaluator.",
     }
 
@@ -385,6 +428,7 @@ def _dependency_sources() -> dict[str, str]:
     import agent_control
     import agent_control_evaluator_galileo
     import agent_control_models
+    import galileo
 
     return {
         "agent_control": str(Path(agent_control.__file__).resolve()),
@@ -392,11 +436,16 @@ def _dependency_sources() -> dict[str, str]:
             Path(agent_control_evaluator_galileo.__file__).resolve()
         ),
         "agent_control_models": str(Path(agent_control_models.__file__).resolve()),
+        "galileo": str(Path(galileo.__file__).resolve()),
     }
 
 
 def _json_text_for_log(value: Any) -> str:
-    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return (
+        value
+        if isinstance(value, str)
+        else json.dumps(value, ensure_ascii=False, sort_keys=True)
+    )
 
 
 def _log_metadata(value: Any) -> dict[str, str | bool | int | float | None] | None:
@@ -475,7 +524,7 @@ def _log_stream_url(*, project_id: str, log_stream_id: str) -> str | None:
 
 async def _evaluate_parent_scenario(
     scenario: BankingScenario,
-    record: dict[str, Any],
+    step: Any,
     env: dict[str, str],
     *,
     trace_id: str,
@@ -487,7 +536,6 @@ async def _evaluate_parent_scenario(
     if scenario.level not in {"trace", "session"}:
         raise ValueError("Only trace and session parents use evaluate_controls()")
 
-    step = build_agent_control_step(record)
     result = await agent_control.evaluate_controls(
         scenario.step_name,
         input=step.input,
@@ -520,8 +568,12 @@ async def _evaluate_parent_scenario(
         None,
     )
     action = expected.get("action") if expected else None
-    outcome = "denied" if action == "deny" else "steered" if action == "steer" else "allowed"
-    steering = (expected.get("metadata") or {}).get("steering_context") if expected else None
+    outcome = (
+        "denied" if action == "deny" else "steered" if action == "steer" else "allowed"
+    )
+    steering = (
+        (expected.get("metadata") or {}).get("steering_context") if expected else None
+    )
     raw_response = (
         result
         if isinstance(result, dict)
@@ -703,9 +755,7 @@ async def _run_decorated_span_scenario(
         async def retrieve_policy(
             query: str, partitions: list[str], limit: int
         ) -> list[dict[str, Any]]:
-            output = search_policy_documents(
-                query, partitions=partitions, limit=limit
-            )
+            output = search_policy_documents(query, partitions=partitions, limit=limit)
             captured["output"] = output
             return output
 
@@ -780,7 +830,9 @@ async def _run_async(
     registered_sink_count = len(agent_control.get_registered_control_event_sinks())
     if registered_sink_count == 0:
         logger.terminate()
-        raise RuntimeError("Galileo did not register an Agent Control control-event sink")
+        raise RuntimeError(
+            "Galileo did not register an Agent Control control-event sink"
+        )
     session_id = logger.start_session(
         name="banking-multilevel-streamlit",
         external_id=f"banking-multilevel-{uuid4()}",
@@ -823,11 +875,17 @@ async def _run_async(
             },
         )
 
+        step = None
         if scenario.level in {"trace", "session"}:
-            record = scenario_record(scenario.key, inputs)
+            step = (
+                recorder_trace_step(inputs)
+                if scenario.level == "trace"
+                else recorder_session_step(inputs)
+            )
+            record = record_from_agent_control_step(step)
             evaluation = await _evaluate_parent_scenario(
                 scenario,
-                record,
+                step,
                 env,
                 trace_id=str(trace.id),
                 span_id=str(workflow.id),
@@ -843,7 +901,8 @@ async def _run_async(
         logger.flush()
         completed = True
 
-        step = build_agent_control_step(record)
+        if step is None:
+            step = build_agent_control_step(record)
         control_span_count = sum(
             getattr(span, "type", None) == "control"
             for span in getattr(workflow, "spans", [])
@@ -896,10 +955,10 @@ def run_scenario(
 ) -> dict[str, Any]:
     inputs = inputs or default_scenario_input(scenario)
     try:
-        return asyncio.run(_run_async(scenario, inputs))
+        result = asyncio.run(_run_async(scenario, inputs))
     except Exception as exc:  # noqa: BLE001 - render actionable E2E failures in Streamlit.
         record = scenario_record(scenario.key, inputs)
-        return {
+        result = {
             "scenario": scenario.key,
             "selected_scenario": scenario.label,
             "request": inputs.request,
@@ -914,93 +973,139 @@ def run_scenario(
             "outcome": "evaluation failed",
             "error": f"{type(exc).__name__}: {exc}",
         }
+    _log_result_to_stderr(result)
+    return result
+
+
+def _log_result_to_stderr(result: dict[str, Any]) -> None:
+    """Keep complete diagnostic evidence in the terminal, not the user-facing UI."""
+    scenario = result.get("scenario", "unknown")
+    print(
+        f"\n=== banking-multilevel result: {scenario} ===",
+        file=sys.stderr,
+        flush=True,
+    )
+    print(
+        json.dumps(result, ensure_ascii=False, indent=2, default=str),
+        file=sys.stderr,
+        flush=True,
+    )
+    print(
+        f"=== end banking-multilevel result: {scenario} ===\n",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def _evaluator_metadata(result: dict[str, Any]) -> dict[str, Any]:
+    evaluator = result.get("evaluator_result")
+    if not isinstance(evaluator, dict):
+        return {}
+    metadata = evaluator.get("metadata")
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _scenario_explanation(result: dict[str, Any]) -> str:
+    """Explain the outcome in banking language instead of exposing evaluator JSON."""
+    if result.get("decision") == "error":
+        return (
+            "The workflow ran, but Agent Control could not complete the evaluation. "
+            f"{result.get('error') or result.get('reason') or 'Check the terminal log for details.'}"
+        )
+
+    denied = result.get("outcome") == "denied"
+    scenario = result.get("scenario")
+    explanations = {
+        "trace": (
+            "The complete transfer workflow was blocked because its final response "
+            "contained sensitive personal information."
+            if denied
+            else "The complete transfer workflow was allowed because no configured sensitive-data rule matched."
+        ),
+        "session": (
+            "The banking session was blocked because the conversation repeated an "
+            "approval-bypass attempt and completed a transfer without the required approval."
+            if denied
+            else "The banking session was allowed because it did not complete a prohibited approval-bypass sequence."
+        ),
+        "llm": (
+            "The model response was blocked because it selected `close_account` even "
+            "though the user asked to plan a transfer with `plan_transfer`."
+            if denied
+            else "The model response was allowed because its selected tool satisfied the request."
+        ),
+        "tool": (
+            "The tool result was blocked because the transfer failed with "
+            "`APPROVAL_REQUIRED`; no transfer was created."
+            if denied
+            else "The tool result was allowed because the transfer completed without a configured tool error."
+        ),
+        "retriever": (
+            "The retrieval result was blocked because the returned policy documents "
+            "were not relevant to the wire-transfer question."
+            if denied
+            else "The retrieval result was allowed because the returned policy documents were relevant to the question."
+        ),
+    }
+    return explanations.get(
+        scenario,
+        "Agent Control blocked this execution."
+        if denied
+        else "Agent Control allowed this execution.",
+    )
+
+
+def _render_scorer_facts(result: dict[str, Any]) -> None:
+    metadata = _evaluator_metadata(result)
+    facts: list[str] = []
+    label = metadata.get("scorer_label")
+    if label:
+        facts.append(f"Scorer: **{label}**")
+    if "score" in metadata:
+        facts.append(f"Score: **{metadata['score']}**")
+    operator = metadata.get("operator")
+    if operator is not None and "threshold" in metadata:
+        facts.append(f"Rule: **score {operator} {metadata['threshold']}**")
+    elapsed = metadata.get("execution_time_seconds")
+    if isinstance(elapsed, int | float):
+        facts.append(f"Evaluation time: **{elapsed:.3f}s**")
+    if facts:
+        st.markdown(" · ".join(facts))
 
 
 def _render_result(result: dict[str, Any]) -> None:
     st.subheader(result["selected_scenario"])
-    summary_columns = st.columns(4)
-    summary_columns[0].metric("Record level", result["record_level"])
-    summary_columns[1].metric("Control decision", result["decision"])
-    summary_columns[2].metric("Outcome", result["outcome"])
-    summary_columns[3].metric("Step count", len(result["step_tree"]))
+    outcome = result.get("outcome")
+    explanation = _scenario_explanation(result)
+    if result.get("decision") == "error":
+        st.error(explanation)
+    elif outcome == "denied":
+        st.error(f"Denied — {explanation}")
+    elif outcome == "steered":
+        st.warning(f"Steered — {explanation}")
+    else:
+        st.success(f"Allowed — {explanation}")
+
+    st.markdown(f"**Request:** {result['request']}")
+    _render_scorer_facts(result)
+
     if result.get("trace_id"):
-        st.success("The application trace and spans were flushed to Galileo.")
-        telemetry_columns = st.columns(4)
-        telemetry_columns[0].metric("Project", str(result["project_id"])[:8])
-        telemetry_columns[1].metric("Log stream", str(result["log_stream_id"])[:8])
-        telemetry_columns[2].metric("Trace", str(result["trace_id"])[:8])
-        telemetry_columns[3].metric("Control spans", result.get("control_span_count", 0))
-        st.caption(
-            "Agent Control registered sinks: "
-            f"{result.get('registered_control_sinks', 0)}"
-        )
-        if result.get("control_span_count", 0) == 0:
-            st.error(
-                "The application trace succeeded, but no Agent Control event was "
-                "attached. The trace's success status describes application "
-                "execution; it does not mean control telemetry was emitted."
+        control_spans = result.get("control_span_count", 0)
+        if control_spans:
+            st.caption(
+                f"Saved to Galileo trace `{str(result['trace_id'])[:8]}` with "
+                f"{control_spans} control span{'s' if control_spans != 1 else ''}."
             )
         else:
-            st.success("Agent Control telemetry is attached to this trace.")
-        if result.get("log_stream_url"):
-            st.markdown(f"[Open this Galileo log stream]({result['log_stream_url']})")
-    st.markdown("**Request**")
-    st.code(result["request"], language=None)
-    st.markdown("**Step tree**")
-    st.dataframe(result["step_tree"], use_container_width=True, hide_index=True)
-    st.markdown("**Evaluator and control result**")
-    st.json(
-        {
-            key: result.get(key)
-            for key in (
-                "scenario",
-                "record_level",
-                "evaluation_path",
-                "execution_evidence",
-                "project_id",
-                "log_stream_id",
-                "session_id",
-                "trace_id",
-                "workflow_span_id",
-                "control_span_count",
-                "registered_control_sinks",
-                "step_name",
-                "step_name_regex",
-                "expected_control",
-                "expected_control_matched",
-                "decision",
-                "outcome",
-                "evaluator_result",
-                "steering_context",
-                "matches",
-                "non_matches",
-                "errors",
-                "reason",
-                "error",
+            st.warning(
+                "The application trace was saved, but it does not contain an Agent Control span."
             )
-            if key in result
-        }
+        if result.get("log_stream_url"):
+            st.markdown(f"[Open the trace in Galileo]({result['log_stream_url']})")
+
+    st.caption(
+        "Complete records and evaluator diagnostics were written to the terminal log."
     )
-    with st.expander("Generated Agent Control record", expanded=True):
-        st.json(result["record"])
-    if "agent_control_step" in result:
-        with st.expander("Agent Control Step sent for evaluation", expanded=True):
-            st.json(result["agent_control_step"])
-    if "scorer_invoke_request" in result:
-        with st.expander("Reconstructed POST /api/v1/scorers/invoke request", expanded=True):
-            st.json(result["scorer_invoke_request"])
-    if result.get("scorer_invoke_response") is not None:
-        with st.expander("Scorer invoke response", expanded=True):
-            st.json(result["scorer_invoke_response"])
-    if result.get("agent_control_response") is not None:
-        with st.expander("Raw Agent Control evaluation response"):
-            st.json(result["agent_control_response"])
-    if "canonical_record" in result:
-        with st.expander("Canonical Galileo record sent to the scorer"):
-            st.json(result["canonical_record"])
-    if "dependency_sources" in result:
-        with st.expander("Loaded Agent Control package paths"):
-            st.json(result["dependency_sources"])
 
 
 def _interactive_inputs(scenario: BankingScenario) -> BankingScenarioInput:
@@ -1135,15 +1240,21 @@ def _interactive_inputs(scenario: BankingScenario) -> BankingScenarioInput:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Banking Agent: five evaluation levels", layout="wide")
+    st.set_page_config(
+        page_title="Banking Agent: five evaluation levels", layout="wide"
+    )
     st.title("Banking Agent · Agent Control + Orbit runtime")
     st.caption(
         "Executable banking workflows with independent trace, session, LLM, tool, and "
         "retriever scorer scenarios. Functions run against a safe in-memory sandbox."
     )
-    selected_label = st.selectbox("Scenario", [scenario.label for scenario in SCENARIOS])
+    selected_label = st.selectbox(
+        "Scenario", [scenario.label for scenario in SCENARIOS]
+    )
     scenario = next(item for item in SCENARIOS if item.label == selected_label)
-    st.info(f"{scenario.description} Target: `{scenario.level}` / `{scenario.step_name}`")
+    st.info(
+        f"{scenario.description} Target: `{scenario.level}` / `{scenario.step_name}`"
+    )
     with st.form(key=f"inputs::{scenario.key}"):
         inputs = _interactive_inputs(scenario)
         submitted = st.form_submit_button(
