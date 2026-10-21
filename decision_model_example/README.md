@@ -115,7 +115,7 @@ are populated by the backend.
 From the repository root:
 
 ```bash
-cd /Users/<you>/code/ace-demo
+cd "$(git rev-parse --show-toplevel)"
 cp decision_model_example/.env.example decision_model_example/.env
 ```
 
@@ -147,7 +147,7 @@ Expected response:
 ## 4. Install the isolated environment
 
 ```bash
-cd /Users/<you>/code/ace-demo
+cd "$(git rev-parse --show-toplevel)"
 
 UV_NO_CONFIG=1 uv sync \
   --project decision_model_example \
