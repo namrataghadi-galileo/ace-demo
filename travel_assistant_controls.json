@@ -1,0 +1,68 @@
+[
+  {
+    "name": "travel-assistant-deny-trace-output-pii",
+    "description": "Deny a trace whose final travel assistant response leaks PII (names, emails, phone numbers, etc.).",
+    "scenario": "trace",
+    "target_level": "trace",
+    "manual_metadata": {
+      "scorer_id": "<fill-from-galileo-ui:output_pii-scorer-id>",
+      "scorer_version_id": "<fill-from-galileo-ui:output_pii-version-id>"
+    },
+    "definition": {
+      "description": "Deny a trace whose final travel assistant response leaks PII (names, emails, phone numbers, etc.).",
+      "enabled": true,
+      "execution": "server",
+      "scope": {"step_types": ["trace"], "stages": ["post"]},
+      "condition": {
+        "selector": {"path": "output"},
+        "evaluator": {
+          "name": "galileo.llm",
+          "config": {
+            "scorer_id": "<fill-from-galileo-ui:output_pii-scorer-id>",
+            "scorer_version_id": "<fill-from-galileo-ui:output_pii-version-id>",
+            "operator": "gte",
+            "threshold": 0.5,
+            "timeout_ms": 30000
+          }
+        }
+      },
+      "action": {"decision": "deny"},
+      "tags": ["travel-assistant", "llm", "trace", "pii", "deny", "post-trace"]
+    }
+  },
+  {
+    "name": "travel-assistant-steer-trace-action-not-advanced",
+    "description": "Steer a trace when the agent failed to advance the user's travel goal (e.g. responded with 'Please try again later').",
+    "scenario": "trace",
+    "target_level": "trace",
+    "manual_metadata": {
+      "scorer_id": "<fill-from-galileo-ui:action_advancement-scorer-id>",
+      "scorer_version_id": "<fill-from-galileo-ui:action_advancement-version-id>"
+    },
+    "definition": {
+      "description": "Steer a trace when the agent failed to advance the user's travel goal.",
+      "enabled": true,
+      "execution": "server",
+      "scope": {"step_types": ["trace"], "stages": ["post"]},
+      "condition": {
+        "selector": {"path": "output"},
+        "evaluator": {
+          "name": "galileo.llm",
+          "config": {
+            "scorer_id": "<fill-from-galileo-ui:action_advancement-scorer-id>",
+            "scorer_version_id": "<fill-from-galileo-ui:action_advancement-version-id>",
+            "operator": "eq",
+            "threshold": 1,
+            "payload_field": "output",
+            "timeout_ms": 30000
+          }
+        }
+      },
+      "action": {
+        "decision": "steer",
+        "steering_context": null
+      },
+      "tags": ["travel-assistant", "llm", "trace", "action-advancement", "steer", "post-trace"]
+    }
+  }
+]
