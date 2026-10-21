@@ -99,19 +99,13 @@ field-by-field source of truth and follow its `setup_order`:
 4. Select the scorer and scorer version in the UI. The backend populates the
    `scorer_id` and `scorer_version_id`; the JSON placeholders only document the
    resulting control shape.
-5. Save the control and attach—or clone and attach—it using the JSON `binding`
-   object. Its target ID must be the same log-stream ID used by the application.
+5. Save the control. In the UI, attach it to the log stream used by the
+   application and enable it.
 
 The JSON includes a known-good `test-jev` reference for comparison. Those UUIDs
 are valid only in `test-jev`; staging and other DevStacks must use IDs generated
 in their own environment. Jev is the scorer/model type, while
 `galileo.decision_models` is the Agent Control evaluator adapter.
-
-If cloning changes the control name, put that exact clone name in
-`DECISION_MODEL_CONTROL_NAME`. Confirm the effective attached control retains
-the same evaluator, scorer version, tool/pre scope, selector, and action. The
-application queries effective controls for the configured log-stream binding
-and fails its preflight check if these fields do not match.
 
 The example is intended to be configured through the UI so the scorer fields
 are populated by the backend.
