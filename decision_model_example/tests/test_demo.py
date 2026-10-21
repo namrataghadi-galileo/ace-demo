@@ -232,14 +232,20 @@ def test_jev_project_uses_only_local_agent_control_sources() -> None:
     assert "local Agent Control feature checkout" in pyproject
 
 
-def test_control_template_uses_decision_models_with_placeholders() -> None:
+def test_scorer_and_control_template_uses_decision_models_with_placeholders() -> None:
     import json
 
-    controls = json.loads((EXAMPLE_ROOT / "controls.json").read_text())
-    control = controls[0]
+    template = json.loads((EXAMPLE_ROOT / "controls_and_evaluator.json").read_text())
+    scorer = template["evaluator"]
+    control = template["control"]
     definition = control["definition"]
     evaluator = definition["condition"]["evaluator"]
 
+    assert scorer["name"] == "Banking Transfer Safety"
+    assert scorer["scorer_type"] == "decision"
+    assert scorer["model"] == "jev-1.13.0"
+    assert scorer["scoreable_node_types"] == ["tool"]
+    assert set(scorer["answer_options"]) == {"true", "false"}
     assert control["name"] == CONTROL_NAME
     assert definition["scope"] == {
         "step_types": ["tool"],
@@ -247,9 +253,10 @@ def test_control_template_uses_decision_models_with_placeholders() -> None:
     }
     assert definition["condition"]["selector"] == {"path": "input"}
     assert evaluator["name"] == EVALUATOR_NAME
-    assert evaluator["config"]["scorer_id"].startswith("<fill-from-galileo-ui:")
-    assert evaluator["config"]["scorer_version_id"].startswith("<fill-from-galileo-ui:")
+    assert evaluator["config"]["scorer_id"].startswith("<copy-from-galileo-ui:")
+    assert evaluator["config"]["scorer_version_id"].startswith("<copy-from-galileo-ui:")
     assert definition["action"] == {"decision": "deny"}
+    assert template["binding"]["target_type"] == "log_stream"
 
 
 def test_example_env_contains_no_real_credentials() -> None:

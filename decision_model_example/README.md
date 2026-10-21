@@ -13,7 +13,7 @@ control in Galileo first, then use this application to exercise it.
 
 - `streamlit_app.py`: interactive UI, Agent Control initialization, and Galileo telemetry.
 - `cases.py`: deterministic banking scenarios and the in-memory transfer function.
-- `controls.json`: exact control fields to reproduce in the Galileo Controls UI.
+- `controls_and_evaluator.json`: ordered scorer, control, and binding fields to reproduce in UI.
 - `.env.example`: all local configuration variables without credentials.
 - `pyproject.toml` and `uv.lock`: isolated Python environment.
 - `tests/test_demo.py`: focused behavior and configuration tests.
@@ -81,103 +81,32 @@ DevStack API key, scorer ID, project ID, or log-stream ID.
 
 ## 1. Create the Galileo target
 
-In the Console for the environment selected above:
+In the selected environment's Console, create or select a Generative AI project
+and an Agent/Log Stream. Record the project name, project ID, log-stream name,
+and log-stream ID for `.env`. All four values must come from the same staging or
+DevStack environment.
 
-1. Open **Projects** and create or select a Generative AI project.
-2. Open **Agent Observability** and create or select an Agent/Log Stream in that
-   project.
-3. Record the four values below from the URL and target details. The names are
-   display names; the IDs are UUIDs.
+## 2. Create the scorer and control in Galileo UI
 
-| Required value | `test-jev` known-good example | Other staging/DevStack |
-|---|---|---|
-| Project name | `test-evals` | Use the selected environment's project name |
-| Project ID | `eb00f91a-0aa6-4d19-99fa-fcbc60a07593` | Use its project UUID |
-| Log-stream name | `test-evals` | Use its Agent/Log Stream name |
-| Log-stream ID | `c21b8514-cc74-4fa0-abda-fec5ddbabecc` | Use its stream UUID |
+Use [`controls_and_evaluator.json`](controls_and_evaluator.json) as the
+field-by-field source of truth and follow its `setup_order`:
 
-The UUIDs above are valid only in `test-jev`. Never use them for staging or a
-different DevStack.
+1. Open **Evaluators** and create the Decision Model scorer using every field in
+   the JSON `evaluator` object.
+2. Save the scorer and version. Copy the generated scorer UUID and
+   scorer-version UUID into `evaluator.record_after_creation`.
+3. Open **Controls** and create an organization-level control using the JSON
+   `control` object and its `definition`.
+4. Replace both scorer placeholders in
+   `control.definition.condition.evaluator.config` with the IDs generated in
+   step 2. Do not use the display name or numeric version in place of a UUID.
+5. Save the control and attach—or clone and attach—it using the JSON `binding`
+   object. Its target ID must be the same log-stream ID used by the application.
 
-### Create or locate the Decision Model scorer
-
-Open **Evaluators** and create a Decision Model scorer with these fields, or
-locate an existing scorer with the same definition:
-
-| Scorer field | Value |
-|---|---|
-| Name | `Banking Transfer Safety` |
-| Scorer type | `Decision` |
-| Model type | `Decision` |
-| Scoreable node type | `Tool` |
-| Input type | `Tool spans` |
-| Output type | `Boolean probability` |
-| Model | `jev-1.13.0` |
-| Question | `Would executing this banking tool request violate policy or require human approval?` |
-| `true` answer | `The request is high risk, lacks approval, exports sensitive data, or targets a new recipient.` |
-| `false` answer | `The request is routine, appropriately scoped, and authorized.` |
-
-Save the scorer and its version. Record the scorer UUID and scorer-version UUID
-from the UI/API—not the display name or numeric version.
-
-The working `test-jev` records currently contain:
-
-| Field | `test-jev` value |
-|---|---|
-| Scorer ID | `3b50e50d-8fef-4062-91c7-df7004b549d7` |
-| Scorer version | `0` |
-| Scorer-version ID | `febe6355-6e2a-4a1d-a78e-43a27a92ddd6` |
-| Decision-scorer ID | `554c5571-b472-48d6-bc03-955f1d31b643` |
-
-Only `scorer_id` and `scorer_version_id` go into the Agent Control evaluator
-configuration. `decision_scorer_id` is shown for diagnostics and is not a
-control field. For staging or another DevStack, locate or create the scorer in
-that environment and use the IDs generated there.
-
-## 2. Create the control in Galileo UI
-
-Use `controls.json` as the field-by-field source of truth. Its scorer UUIDs are
-placeholders and must be replaced with values from your environment.
-
-In **Controls**, select **Create control** and create an organization-level
-control with these values:
-
-| UI field | Value |
-|---|---|
-| Name | `test-jev-banking-transfer-safety-deny-tool` |
-| Description | `Deny unsafe banking transfer tool calls using the Galileo Jev decision evaluator.` |
-| Enabled | Yes |
-| Execution | Server |
-| Step type / level | `tool` |
-| Stage | `pre` |
-| Step-name regex | Leave empty; the working control applies to pre-execution checks for tool steps |
-| Selector path | `input` |
-| Evaluator | `galileo.decision_models` |
-| Scorer ID | Your Jev decision-model scorer ID |
-| Scorer version ID | Your pinned scorer-version ID |
-| Scorer label | Leave empty |
-| Payload field | `input` |
-| Operator | `gte` |
-| Threshold | `0.5` |
-| Timeout | `10000` ms |
-| Action | `deny` |
-| Tags | `test-jev`, `galileo`, `jev`, `tool`, `deny`, `runtime` (replace `test-jev` with your environment label if appropriate) |
-
-The important distinction is that **Jev is the scorer/model type**, while
+The JSON includes a known-good `test-jev` reference for comparison. Those UUIDs
+are valid only in `test-jev`; staging and other DevStacks must use IDs generated
+in their own environment. Jev is the scorer/model type, while
 `galileo.decision_models` is the Agent Control evaluator adapter.
-
-Save the control. Then open its target/binding configuration and attach—or
-clone and attach—it with:
-
-| Binding field | Value |
-|---|---|
-| Target type | `log_stream` |
-| Target | The log-stream ID recorded in step 1 |
-| Enabled | Yes |
-
-For `test-jev`, the known-good binding is
-`log_stream/c21b8514-cc74-4fa0-abda-fec5ddbabecc`. Use a different target ID
-for staging or another DevStack.
 
 If cloning changes the control name, put that exact clone name in
 `DECISION_MODEL_CONTROL_NAME`. Confirm the effective attached control retains
@@ -185,9 +114,8 @@ the same evaluator, scorer version, tool/pre scope, selector, and action. The
 application queries effective controls for the configured log-stream binding
 and fails its preflight check if these fields do not match.
 
-If your UI offers raw JSON entry, copy the object under `definition` from
-`controls.json` after replacing the two scorer placeholders. Otherwise, enter
-the same values through the form.
+If the UI offers raw JSON entry, copy `control.definition` only after replacing
+its two scorer placeholders. Otherwise, enter those same fields through the UI.
 
 ## 3. Configure the local environment
 
