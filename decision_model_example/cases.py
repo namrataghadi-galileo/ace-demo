@@ -6,14 +6,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from typing import Any
 
-CONTROL_ID = 1
 CONTROL_NAME = "test-jev-banking-transfer-safety-deny-tool"
 EVALUATOR_NAME = "galileo.decision_models"
-SCORER_ID = "3b50e50d-8fef-4062-91c7-df7004b549d7"
-SCORER_VERSION_ID = "febe6355-6e2a-4a1d-a78e-43a27a92ddd6"
 STEP_NAME = "banking_jev_submit_transfer"
-TARGET_TYPE = "log_stream"
-TARGET_ID = "c21b8514-cc74-4fa0-abda-fec5ddbabecc"
 
 
 @dataclass(frozen=True)
@@ -146,9 +141,7 @@ class BankingSandbox:
     """In-memory ledger used by the demo; it never calls a real banking service."""
 
     def __init__(self) -> None:
-        self.accounts = {
-            "acct-1001": {"available_balance": 50_000.0, "currency": "USD"}
-        }
+        self.accounts = {"acct-1001": {"available_balance": 50_000.0, "currency": "USD"}}
         self.transactions: list[dict[str, Any]] = []
 
     def lookup_balance(self, account_id: str) -> dict[str, Any]:
@@ -208,6 +201,7 @@ def _blocked_result(
     validation: dict[str, Any],
     payload: dict[str, Any],
     error: Exception,
+    control_name: str,
 ) -> dict[str, Any]:
     metadata = getattr(error, "metadata", {})
     return {
@@ -220,8 +214,8 @@ def _blocked_result(
         "tool_executed": False,
         "tool_output": None,
         "control": {
-            "id": getattr(error, "control_id", CONTROL_ID),
-            "name": getattr(error, "control_name", CONTROL_NAME),
+            "id": getattr(error, "control_id", None),
+            "name": getattr(error, "control_name", control_name),
             "evaluator": EVALUATOR_NAME,
             "message": getattr(error, "message", str(error)),
             "metadata": metadata if isinstance(metadata, dict) else {},
@@ -235,6 +229,7 @@ async def run_banking_workflow(
     protected_transfer: TransferTool,
     *,
     sandbox: BankingSandbox | None = None,
+    control_name: str = CONTROL_NAME,
 ) -> dict[str, Any]:
     """Run checks and invoke the transfer tool exactly once through Agent Control."""
     from agent_control import ControlViolationError
@@ -253,6 +248,7 @@ async def run_banking_workflow(
             validation=validation,
             payload=payload,
             error=exc,
+            control_name=control_name,
         )
     except Exception as exc:  # noqa: BLE001 - surfaced as an actionable UI error.
         return {
@@ -278,8 +274,8 @@ async def run_banking_workflow(
         "tool_executed": True,
         "tool_output": output,
         "control": {
-            "id": CONTROL_ID,
-            "name": CONTROL_NAME,
+            "id": None,
+            "name": control_name,
             "evaluator": EVALUATOR_NAME,
             "message": "The pre-tool control did not block the decorated function.",
             "metadata": {},

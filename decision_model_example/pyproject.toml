@@ -1,7 +1,7 @@
 [project]
-name = "ace-banking-jev-example"
+name = "ace-decision-model-example"
 version = "0.1.0"
-description = "Interactive banking demo for an existing Galileo Jev tool control"
+description = "Interactive banking demo for a Galileo Decision Models tool control"
 requires-python = ">=3.12,<3.15"
 dependencies = [
   "agent-control-sdk[galileo,otel]>=8.14.0",

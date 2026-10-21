@@ -5,8 +5,7 @@ import tomllib
 from pathlib import Path
 
 from agent_control import ControlViolationError
-
-from banking_jev_cases import (
+from decision_model_example.cases import (
     CONTROL_NAME,
     EVALUATOR_NAME,
     SCENARIO_BY_KEY,
@@ -16,18 +15,14 @@ from banking_jev_cases import (
     run_banking_workflow,
     transfer_tool_payload,
 )
-from banking_jev_streamlit_app import (
-    DEFAULT_AGENT_CONTROL_URL,
-    DEFAULT_AGENT_NAME,
-    DEFAULT_API_URL,
-    DEFAULT_CONSOLE_URL,
+from decision_model_example.streamlit_app import (
     ControlEventCapture,
     normalize_api_root,
     runtime_environment,
     verify_bound_control,
 )
 
-ROOT = Path(__file__).parents[1]
+EXAMPLE_ROOT = Path(__file__).parents[1]
 
 
 def test_tool_payload_contains_fields_evaluated_by_jev() -> None:
@@ -67,9 +62,7 @@ def test_deny_stops_transfer_before_sandbox_execution() -> None:
             metadata={"score": "deny", "scorer_label": "Banking transfer safety"},
         )
 
-    result = asyncio.run(
-        run_banking_workflow(request, denied_tool, sandbox=sandbox)
-    )
+    result = asyncio.run(run_banking_workflow(request, denied_tool, sandbox=sandbox))
 
     assert called is True
     assert result["decision"] == "deny"
@@ -86,9 +79,7 @@ def test_non_denied_transfer_completes_normally() -> None:
     async def allowed_tool(**payload):
         return sandbox.submit_transfer(**payload)
 
-    result = asyncio.run(
-        run_banking_workflow(request, allowed_tool, sandbox=sandbox)
-    )
+    result = asyncio.run(run_banking_workflow(request, allowed_tool, sandbox=sandbox))
 
     assert result["decision"] == "allow"
     assert result["tool_executed"] is True
@@ -107,8 +98,8 @@ def test_existing_backend_control_is_validated_without_mutation() -> None:
                 "evaluator": {
                     "name": EVALUATOR_NAME,
                     "config": {
-                        "scorer_id": "3b50e50d-8fef-4062-91c7-df7004b549d7",
-                        "scorer_version_id": "febe6355-6e2a-4a1d-a78e-43a27a92ddd6",
+                        "scorer_id": "test-scorer-id",
+                        "scorer_version_id": "test-scorer-version-id",
                     },
                 },
             },
@@ -116,7 +107,12 @@ def test_existing_backend_control_is_validated_without_mutation() -> None:
         },
     }
 
-    summary = verify_bound_control([control])
+    summary = verify_bound_control(
+        [control],
+        control_name=CONTROL_NAME,
+        scorer_id="test-scorer-id",
+        scorer_version_id="test-scorer-version-id",
+    )
 
     assert summary["name"] == CONTROL_NAME
     assert summary["evaluator"] == EVALUATOR_NAME
@@ -160,33 +156,55 @@ def test_galileo_api_url_removes_legacy_api_suffix() -> None:
     )
 
 
-def test_jev_runtime_ignores_stale_generic_devstack_variables(monkeypatch) -> None:
+def test_runtime_environment_reads_the_example_configuration(monkeypatch) -> None:
     monkeypatch.setenv("GALILEO_API_KEY", "test-key")
-    monkeypatch.setenv(
-        "GALILEO_CONSOLE_URL",
-        "https://console-namrata-ghadi-test-jev.gcp-dev.galileo.ai",
-    )
-    monkeypatch.setenv("GALILEO_API_URL", "https://wrong.example/api")
-    monkeypatch.setenv("GALILEO_LOG_STREAM_ID", "76c0e787-6911-4999-8f0e-b074ebb47b9f")
-    monkeypatch.setenv("AGENT_CONTROL_AGENT_NAME", "galileo-control-span-demo")
-    monkeypatch.setenv(
-        "AGENT_CONTROL_URL",
-        "https://console-wrong.example/api/agent-control",
-    )
+    monkeypatch.setenv("GALILEO_CONSOLE_URL", "https://console-stack.example")
+    monkeypatch.setenv("GALILEO_API_URL", "https://api-stack.example/api")
+    monkeypatch.setenv("GALILEO_PROJECT_ID", "project-id")
+    monkeypatch.setenv("GALILEO_PROJECT", "project-name")
+    monkeypatch.setenv("GALILEO_LOG_STREAM_ID", "stream-id")
+    monkeypatch.setenv("GALILEO_LOG_STREAM", "stream-name")
+    monkeypatch.setenv("AGENT_CONTROL_AGENT_NAME", "decision-model-demo")
+    monkeypatch.delenv("AGENT_CONTROL_URL", raising=False)
+    monkeypatch.delenv("AGENT_CONTROL_TARGET_ID", raising=False)
+    monkeypatch.setenv("DECISION_MODEL_SCORER_ID", "scorer-id")
+    monkeypatch.setenv("DECISION_MODEL_SCORER_VERSION_ID", "version-id")
 
     env = runtime_environment()
 
-    assert env.console_url == DEFAULT_CONSOLE_URL
-    assert env.api_url == DEFAULT_API_URL
-    assert env.agent_control_url == DEFAULT_AGENT_CONTROL_URL
-    assert env.agent_name == DEFAULT_AGENT_NAME
-    assert env.log_stream_id == "c21b8514-cc74-4fa0-abda-fec5ddbabecc"
+    assert env.console_url == "https://console-stack.example"
+    assert env.api_url == "https://api-stack.example"
+    assert env.agent_control_url == "https://console-stack.example/api/agent-control"
+    assert env.agent_name == "decision-model-demo"
+    assert env.log_stream_id == "stream-id"
+    assert env.target_id == "stream-id"
+    assert env.scorer_id == "scorer-id"
+    assert env.scorer_version_id == "version-id"
+
+
+def test_runtime_rejects_different_control_and_telemetry_streams(monkeypatch) -> None:
+    import pytest
+
+    monkeypatch.setenv("GALILEO_API_KEY", "test-key")
+    monkeypatch.setenv("GALILEO_CONSOLE_URL", "https://console-stack.example")
+    monkeypatch.setenv("GALILEO_API_URL", "https://api-stack.example")
+    monkeypatch.setenv("GALILEO_PROJECT_ID", "project-id")
+    monkeypatch.setenv("GALILEO_PROJECT", "project-name")
+    monkeypatch.setenv("GALILEO_LOG_STREAM_ID", "telemetry-stream")
+    monkeypatch.setenv("GALILEO_LOG_STREAM", "stream-name")
+    monkeypatch.setenv("AGENT_CONTROL_TARGET_TYPE", "log_stream")
+    monkeypatch.setenv("AGENT_CONTROL_TARGET_ID", "control-stream")
+    monkeypatch.setenv("DECISION_MODEL_SCORER_ID", "scorer-id")
+    monkeypatch.setenv("DECISION_MODEL_SCORER_VERSION_ID", "version-id")
+
+    with pytest.raises(RuntimeError, match="must equal GALILEO_LOG_STREAM_ID"):
+        runtime_environment()
 
 
 def test_app_uses_control_decorator_and_never_calls_evaluate_controls() -> None:
-    source = (ROOT / "banking_jev_streamlit_app.py").read_text()
+    source = (EXAMPLE_ROOT / "streamlit_app.py").read_text()
 
-    assert "step_name=STEP_NAME, step_type=\"tool\"" in source
+    assert 'step_name=STEP_NAME, step_type="tool"' in source
     assert "evaluate_controls(" not in source
     assert "client.put(" not in source
     assert "client.post(" not in source
@@ -195,7 +213,7 @@ def test_app_uses_control_decorator_and_never_calls_evaluate_controls() -> None:
 
 
 def test_jev_project_uses_only_local_agent_control_sources() -> None:
-    pyproject_path = ROOT / "banking-jev" / "pyproject.toml"
+    pyproject_path = EXAMPLE_ROOT / "pyproject.toml"
     pyproject = pyproject_path.read_text()
     sources = tomllib.loads(pyproject)["tool"]["uv"]["sources"]
     expected = {
@@ -212,3 +230,32 @@ def test_jev_project_uses_only_local_agent_control_sources() -> None:
     assert all("../../agent-control/" in source["path"] for source in sources.values())
     assert "galileo.decision_models is being exercised" in pyproject
     assert "local Agent Control feature checkout" in pyproject
+
+
+def test_control_template_uses_decision_models_with_placeholders() -> None:
+    import json
+
+    controls = json.loads((EXAMPLE_ROOT / "controls.json").read_text())
+    control = controls[0]
+    definition = control["definition"]
+    evaluator = definition["condition"]["evaluator"]
+
+    assert control["name"] == CONTROL_NAME
+    assert definition["scope"] == {
+        "step_types": ["tool"],
+        "stages": ["pre"],
+        "step_name_regex": "^banking_jev_submit_transfer$",
+    }
+    assert definition["condition"]["selector"] == {"path": "input"}
+    assert evaluator["name"] == EVALUATOR_NAME
+    assert evaluator["config"]["scorer_id"].startswith("<fill-from-galileo-ui:")
+    assert evaluator["config"]["scorer_version_id"].startswith("<fill-from-galileo-ui:")
+    assert definition["action"] == {"decision": "deny"}
+
+
+def test_example_env_contains_no_real_credentials() -> None:
+    env_example = (EXAMPLE_ROOT / ".env.example").read_text()
+
+    assert "GALILEO_API_KEY=<your-api-key>" in env_example
+    assert "DECISION_MODEL_SCORER_ID=<decision-model-scorer-id>" in env_example
+    assert "namrata-ghadi" not in env_example
