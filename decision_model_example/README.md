@@ -23,8 +23,10 @@ control in Galileo first, then use this application to exercise it.
 Before running the example, confirm all of the following:
 
 1. Python 3.12 through 3.14 and [uv](https://docs.astral.sh/uv/) are installed.
-2. You can access a Galileo DevStack and have a Galileo API key.
-3. The DevStack has a project and log stream where the example can write traces.
+2. You can access the Galileo staging environment or a DevStack and have an API key
+   for that environment.
+3. The selected environment has a project and log stream where the example can
+   write traces.
 4. Agent Control is deployed and reachable through the Console gateway.
 5. The Agent Control deployment exposes `galileo.decision_models`. Its startup
    log should list that evaluator as available.
@@ -37,7 +39,45 @@ Before running the example, confirm all of the following:
    `/Users/<you>/code/agent-control` on the branch containing that evaluator.
    The uv source paths assume `ace-demo` and `agent-control` share a parent
    directory. This local checkout supplies only Python packages; the application
-   still calls the Agent Control service in the DevStack.
+   still calls the Agent Control service in the selected remote environment.
+
+### Confirm the target-environment prerequisites
+
+Choose **one** environment—staging or a specific DevStack—and use that same
+environment for the Console URL, API URL, Agent Control URL, API key, project,
+log stream, scorer, scorer version, and control binding. Do not copy IDs or URLs
+between staging and a DevStack.
+
+Agent Control in the selected environment must have:
+
+```ini
+GALILEO_FEATURE_FLAG_SCORER_INVOKE_RUNTIME=enabled
+```
+
+For a DevStack, replace `<devstack-namespace>` with the namespace you are
+actually testing. For example, use `test-jev` only when testing the `test-jev`
+DevStack:
+
+```bash
+NS="<devstack-namespace>"
+POD="$(kubectl get pod -n "$NS" -l app=agent-control \
+  -o jsonpath='{.items[0].metadata.name}')"
+
+kubectl exec -n "$NS" "$POD" -- \
+  printenv GALILEO_FEATURE_FLAG_SCORER_INVOKE_RUNTIME
+```
+
+Expected:
+
+```text
+enabled
+```
+
+For staging, use the staging deployment configuration or staging namespace if
+you have cluster access. If you do not have that access, ask the staging owner
+to confirm the flag and that the Agent Control startup log lists
+`galileo.decision_models`. Do not run the example against staging while using a
+DevStack API key, scorer ID, project ID, or log-stream ID.
 
 ## 1. Create the Galileo target
 
