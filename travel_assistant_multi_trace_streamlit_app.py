@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
-"""Travel assistant demo: Book Flight → Book Hotel, with PII control gate between steps.
+"""Travel assistant demo: Book Flight → Book Hotel, with two Agent Control scenarios.
 
 Workflow
 --------
-Step 1 — book_flight():
-  Calls function1a() which invokes a deterministic LLM that leaks PII (passenger
-  email + passport number) in its output.  The LLM span is a child of the
-  book_flight trace.  After the trace completes, Agent Control evaluates it with
-  a PII control bound to the trace step.
+Scenario A — PII deny gate (leak_pii=True):
+  The flight-booking LLM leaks passenger PII (email + passport) in its output.
+  A PII control evaluates the flight trace post-stage and fires *deny*.
+  Hotel booking is blocked entirely.
+
+Scenario B — Steer to step 1a (simulate_bad_booking=True):
+  The flight-booking LLM returns a vague, unhelpful response that does NOT
+  advance the user's goal (no confirmation number, no flight details).
+  An `agentic_workflow_success` (Action Advancement) LLM evaluator detects that
+  the agent failed to advance toward the goal and fires *steer*.
+  The steering context instructs the app to retry via an alternative airline
+  (step 1a).  Step 1a produces a successful booking, and hotel booking proceeds.
 
 Step 2 — book_hotel():
-  Only runs when the Step-1 control decision is NOT "deny".  If Step 1 is denied
-  the app surfaces the block and skips hotel booking.
+  Only runs when the flight trace decision is NOT "deny".
 
 Instrumentation follows banking_multilevel_streamlit_app.py:
   - GalileoLogger for trace/span emission
-  - agent_control.evaluate_controls() for the trace-level PII check
-  - agent_control.control() decorator for the LLM span inside book_flight
+  - agent_control.evaluate_controls() for the trace-level controls
 """
 
 from __future__ import annotations
@@ -50,9 +55,11 @@ from common import (
 
 DEFAULT_AGENT_NAME = "travel-assistant-demo"
 FLIGHT_TRACE_STEP_NAME = "travel_book_flight"
+FLIGHT_ALT_TRACE_STEP_NAME = "travel_book_flight_alt"
 HOTEL_TRACE_STEP_NAME = "travel_book_hotel"
 FLIGHT_LLM_STEP_NAME = "travel_flight_confirmation_llm"
 FLIGHT_PII_CONTROL_NAME = "travel-deny-flight-pii"
+FLIGHT_STEER_CONTROL_NAME = "travel-steer-flight-retry"
 
 
 # ---------------------------------------------------------------------------
@@ -72,11 +79,25 @@ class TravelInputs:
     check_in: str = "2026-11-01"
     check_out: str = "2026-11-03"
     leak_pii: bool = True
+    simulate_bad_booking: bool = False
 
 
 def _run_confirmation_llm(inputs: TravelInputs) -> dict[str, Any]:
-    """Deterministic model adapter — leaks PII when leak_pii=True."""
-    if inputs.leak_pii:
+    """Deterministic model adapter — leaks PII when leak_pii=True.
+
+    When simulate_bad_booking=True the LLM returns a vague non-advancing
+    response (no confirmation number, no actionable details) that triggers the
+    agentic_workflow_success steer control.
+    """
+    if inputs.simulate_bad_booking:
+        # Vague output that does NOT advance the goal — no booking confirmation,
+        # no flight details.  The agentic_workflow_success evaluator will score
+        # this as 0 (did not advance) and the steer control fires.
+        content = (
+            "I looked into available flights but was unable to complete the "
+            "booking at this time. Please try again later."
+        )
+    elif inputs.leak_pii:
         content = (
             f"Flight confirmed for {inputs.passenger_name} "
             f"({inputs.passenger_email}, passport {inputs.passport_number}) "
@@ -86,6 +107,20 @@ def _run_confirmation_llm(inputs: TravelInputs) -> dict[str, Any]:
         content = (
             f"Flight confirmed from {inputs.origin} to {inputs.destination} on {inputs.travel_date}."
         )
+    return {
+        "role": "assistant",
+        "content": content,
+        "tool_calls": [],
+    }
+
+
+def _run_alternative_llm(inputs: TravelInputs) -> dict[str, Any]:
+    """Step 1a: alternative airline booking — always succeeds, no PII leak."""
+    content = (
+        f"Alternative flight booked via SkyStar Airlines from {inputs.origin} "
+        f"to {inputs.destination} on {inputs.travel_date}. "
+        f"Confirmation: ALT-{uuid4().hex[:8].upper()}."
+    )
     return {
         "role": "assistant",
         "content": content,
@@ -106,6 +141,8 @@ def _book_flight_record(inputs: TravelInputs) -> dict[str, Any]:
         },
     ]
     llm_output = _run_confirmation_llm(inputs)
+    # When simulating a bad booking the status reflects the failed attempt
+    status = "failed" if inputs.simulate_bad_booking else "booked"
     llm_span = {
         "type": "llm",
         "name": FLIGHT_LLM_STEP_NAME,
@@ -115,13 +152,12 @@ def _book_flight_record(inputs: TravelInputs) -> dict[str, Any]:
         "metadata": {
             "executed": True,
             "model": "deterministic-travel-model",
-            "leak_pii": inputs.leak_pii,
             "external_call": False,
         },
     }
     trace_output = {
-        "status": "booked",
-        "confirmation": llm_output["content"],
+        "status": status,
+        "output": llm_output["content"],
         "flight": {
             "origin": inputs.origin,
             "destination": inputs.destination,
@@ -142,6 +178,73 @@ def _book_flight_record(inputs: TravelInputs) -> dict[str, Any]:
         "metadata": {
             "executed": True,
             "executed_function": "_book_flight_record",
+            "external_call": False,
+        },
+    }
+
+
+def _book_flight_alternative_record(inputs: TravelInputs) -> dict[str, Any]:
+    """Step 1a: alternative flight booking trace logged after a steer decision.
+
+    This represents the agent retrying via a different airline after the
+    agentic_workflow_success control fired steer on the original flight trace.
+    """
+    llm_input = [
+        {
+            "role": "system",
+            "content": (
+                "The primary booking attempt failed to advance. "
+                "Retry via an alternative airline to complete the booking."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Book an alternative flight from {inputs.origin} to {inputs.destination} "
+                f"on {inputs.travel_date} for {inputs.passenger_name}."
+            ),
+        },
+    ]
+    llm_output = _run_alternative_llm(inputs)
+    llm_span = {
+        "type": "llm",
+        "name": "travel_flight_alt_llm",
+        "input": llm_input,
+        "output": llm_output,
+        "tools": [],
+        "metadata": {
+            "executed": True,
+            "model": "deterministic-travel-model",
+            "step": "alternative",
+            "external_call": False,
+        },
+    }
+    trace_output = {
+        "status": "booked",
+        "output": llm_output["content"],
+        "flight": {
+            "origin": inputs.origin,
+            "destination": inputs.destination,
+            "date": inputs.travel_date,
+            "airline": "SkyStar Airlines",
+        },
+    }
+    return {
+        "type": "trace",
+        "name": FLIGHT_ALT_TRACE_STEP_NAME,
+        "input": {
+            "passenger": inputs.passenger_name,
+            "origin": inputs.origin,
+            "destination": inputs.destination,
+            "date": inputs.travel_date,
+            "retry_reason": "steer: primary booking did not advance toward goal",
+        },
+        "output": trace_output,
+        "spans": [llm_span],
+        "metadata": {
+            "executed": True,
+            "step": "1a",
+            "executed_function": "_book_flight_alternative_record",
             "external_call": False,
         },
     }
@@ -368,12 +471,13 @@ async def _evaluate_flight_trace(
     *,
     trace_id: str,
     span_id: str,
+    step_name: str = FLIGHT_TRACE_STEP_NAME,
 ) -> dict[str, Any]:
     import agent_control
 
     step = _build_step(record)
     result = await agent_control.evaluate_controls(
-        FLIGHT_TRACE_STEP_NAME,
+        step_name,
         input=step.input,
         output=step.output,
         context=step.context,
@@ -393,20 +497,38 @@ async def _evaluate_flight_trace(
     non_matches = _summarize_matches(_val(result, "non_matches", []))
     errors = _summarize_matches(_val(result, "errors", []))
 
-    # Find the PII control result; fall back to first match
-    pii_match = next(
-        (m for m in matches if isinstance(m.get("control"), str) and "pii" in m["control"].lower()),
-        matches[0] if matches else None,
+    # Find the highest-priority matched control: deny > steer > first match
+    deny_match = next(
+        (m for m in matches if m.get("action") == "deny"),
+        None,
     )
-    action = pii_match.get("action") if pii_match else None
+    steer_match = next(
+        (m for m in matches if m.get("action") == "steer"),
+        None,
+    )
+    primary_match = deny_match or steer_match or (matches[0] if matches else None)
+    action = primary_match.get("action") if primary_match else None
     outcome = "denied" if action == "deny" else "steered" if action == "steer" else "allowed"
+
+    # Steering context: extract from matched steer control if present
+    steering_context: dict[str, Any] | None = None
+    if steer_match and not deny_match:
+        raw_result = steer_match.get("message") or ""
+        try:
+            steering_context = json.loads(raw_result) if raw_result else None
+        except (json.JSONDecodeError, TypeError):
+            steering_context = {"message": raw_result}
 
     raw = result if isinstance(result, dict) else result.model_dump(mode="json", exclude_none=True)
     return {
         "decision": action or "allow",
         "outcome": outcome,
-        "pii_control_matched": pii_match is not None and action in {"deny", "steer"},
-        "pii_control_result": pii_match,
+        "pii_control_matched": primary_match is not None and action == "deny"
+            and isinstance(primary_match.get("control"), str)
+            and "pii" in primary_match["control"].lower(),
+        "steer_control_matched": steer_match is not None and not deny_match,
+        "primary_control_result": primary_match,
+        "steering_context": steering_context,
         "matches": matches,
         "non_matches": non_matches,
         "errors": errors,
@@ -440,7 +562,7 @@ async def _run_async(inputs: TravelInputs) -> dict[str, Any]:
     session_id = logger.start_session(
         name="travel-assistant-streamlit",
         external_id=f"travel-assistant-{uuid4()}",
-        metadata={"demo": "travel-assistant", "leak_pii": inputs.leak_pii},
+        metadata={"demo": "travel-assistant"},
     )
     if logger.project_id is None or logger.log_stream_id is None:
         logger.terminate()
@@ -474,7 +596,7 @@ async def _run_async(inputs: TravelInputs) -> dict[str, Any]:
         flight_trace = logger.start_trace(
             input=_json_text(flight_record["input"]),
             name=FLIGHT_TRACE_STEP_NAME,
-            metadata={"step": "book_flight", "leak_pii": inputs.leak_pii},
+            metadata={"step": "book_flight"},
         )
         flight_workflow = logger.add_workflow_span(
             input=_json_text(flight_record["input"]),
@@ -482,7 +604,7 @@ async def _run_async(inputs: TravelInputs) -> dict[str, Any]:
             metadata={"evaluation_path": "evaluate_controls"},
         )
 
-        # Evaluate the flight trace — PII control fires here if PII leaked
+        # Evaluate the flight trace — PII control (deny) or steer control fires here
         flight_eval = await _evaluate_flight_trace(
             flight_record,
             env,
@@ -496,21 +618,77 @@ async def _run_async(inputs: TravelInputs) -> dict[str, Any]:
             conclude_all=True,
         )
 
+        steer_intended = flight_eval["steer_control_matched"] and inputs.simulate_bad_booking
+        steer_unexpected = flight_eval["steer_control_matched"] and not inputs.simulate_bad_booking
+        # Effective decision: if steer fired but scenario B was not enabled,
+        # treat it as allow — the flight was confirmed and we don't act on it.
+        effective_decision = flight_eval["decision"]
+        if steer_unexpected:
+            effective_decision = "allow"
+        effective_outcome = (
+            "denied" if effective_decision == "deny"
+            else "steered" if effective_decision == "steer"
+            else "allowed"
+        )
         result.update(
             {
                 "flight_trace_id": str(flight_trace.id),
                 "flight_record": flight_record,
                 "flight_eval": flight_eval,
-                "flight_decision": flight_eval["decision"],
-                "flight_outcome": flight_eval["outcome"],
+                "flight_decision": effective_decision,
+                "flight_outcome": effective_outcome,
                 "pii_control_matched": flight_eval["pii_control_matched"],
+                "steer_control_matched": steer_intended,
+                "steer_fired_unexpectedly": steer_unexpected,
             }
         )
 
         # ------------------------------------------------------------------
+        # Step 1a: Alternative flight — triggered by steer decision
+        # Only execute when the user enabled scenario B (simulate_bad_booking).
+        # If the steer control fires on a normal run (no bad booking), we surface
+        # it as a warning but do NOT take the alternative path.
+        # ------------------------------------------------------------------
+        flight_alt_record: dict[str, Any] | None = None
+        if steer_intended:
+            flight_alt_record = _book_flight_alternative_record(inputs)
+
+            flight_alt_trace = logger.start_trace(
+                input=_json_text(flight_alt_record["input"]),
+                name=FLIGHT_ALT_TRACE_STEP_NAME,
+                metadata={
+                    "step": "book_flight_alt",
+                    "triggered_by": "steer",
+                    "steering_context": _json_text(flight_eval.get("steering_context") or {}),
+                },
+            )
+            flight_alt_workflow = logger.add_workflow_span(
+                input=_json_text(flight_alt_record["input"]),
+                name=f"{FLIGHT_ALT_TRACE_STEP_NAME}_workflow",
+                metadata={"evaluation_path": "direct", "step": "1a"},
+            )
+            _emit_record_spans(logger, flight_alt_record)
+            logger.conclude(
+                output=_json_text(flight_alt_record["output"]),
+                conclude_all=True,
+            )
+
+            result.update(
+                {
+                    "flight_alt_trace_id": str(flight_alt_trace.id),
+                    "flight_alt_record": flight_alt_record,
+                    "flight_alt_outcome": "alternative flight booked via steer",
+                }
+            )
+
+        # ------------------------------------------------------------------
         # Step 2: Book Hotel — only if flight trace was NOT denied
         # ------------------------------------------------------------------
-        if flight_eval["decision"] == "deny":
+        # deny  → block hotel
+        # steer + simulate_bad_booking → step 1a ran, proceed to hotel
+        # steer + normal run → treated as allow (see effective_decision above)
+        # allow → proceed normally
+        if effective_decision == "deny":
             result["hotel_skipped"] = True
             result["hotel_skip_reason"] = (
                 "Flight booking trace was denied by PII control. "
@@ -601,10 +779,11 @@ def _render_result(result: dict[str, Any]) -> None:
         return
 
     st.subheader("Step 1 — Book Flight")
-    cols = st.columns(3)
+    cols = st.columns(4)
     cols[0].metric("Decision", result.get("flight_decision", "—"))
     cols[1].metric("Outcome", result.get("flight_outcome", "—"))
     cols[2].metric("PII Control Fired", "Yes" if result.get("pii_control_matched") else "No")
+    cols[3].metric("Steer Control Fired", "Yes" if result.get("steer_control_matched") else "No")
 
     if result.get("flight_trace_id"):
         st.success("Flight trace flushed to Galileo.")
@@ -621,6 +800,36 @@ def _render_result(result: dict[str, Any]) -> None:
     with st.expander("Flight trace record"):
         st.json(result.get("flight_record", {}))
 
+    # ------------------------------------------------------------------
+    # Step 1a — Alternative flight (only shown when steer fired intentionally)
+    # ------------------------------------------------------------------
+    if result.get("steer_fired_unexpectedly"):
+        st.warning(
+            "The `Action-Advancement` steer control fired on this run even though "
+            "Scenario B was not enabled. The flight was confirmed — this is likely "
+            "the scorer evaluating a short/deterministic output as low advancement. "
+            "Step 1a was **not** executed. Hotel booking proceeded normally."
+        )
+
+    if result.get("steer_control_matched"):
+        st.divider()
+        st.subheader("Step 1a — Alternative Flight Booking (triggered by Steer)")
+        _render_decision_badge("steer")
+        st.info(
+            "The `agentic_workflow_success` control detected that the primary "
+            "flight booking did not advance toward the goal. The agent was "
+            "steered to retry via an alternative airline."
+        )
+        if result.get("flight_alt_record"):
+            alt_output = result["flight_alt_record"].get("output", {})
+            st.success(
+                alt_output.get("output", "Alternative flight booked successfully.")
+            )
+        if result.get("flight_alt_trace_id"):
+            st.metric("Alt-flight trace", str(result.get("flight_alt_trace_id", ""))[:8])
+        with st.expander("Alternative flight trace record"):
+            st.json(result.get("flight_alt_record", {}))
+
     st.divider()
     st.subheader("Step 2 — Book Hotel")
 
@@ -628,7 +837,13 @@ def _render_result(result: dict[str, Any]) -> None:
         st.error(result.get("hotel_skip_reason", "Hotel booking was skipped."))
         _render_decision_badge("deny")
     else:
-        st.success("Hotel booking proceeded — PII control did not fire.")
+        if result.get("steer_control_matched"):
+            st.success(
+                "Hotel booking proceeded — steer control redirected to alternative flight; "
+                "hotel booking continues as normal."
+            )
+        else:
+            st.success("Hotel booking proceeded — PII control did not fire.")
         _render_decision_badge("allow")
         if result.get("hotel_trace_id"):
             st.metric("Hotel trace", str(result.get("hotel_trace_id", ""))[:8])
@@ -640,12 +855,14 @@ def _render_result(result: dict[str, Any]) -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Travel Assistant — PII Control Gate", layout="wide")
-    st.title("Travel Assistant · Agent Control PII Gate")
+    st.set_page_config(page_title="Travel Assistant — Agent Control Demo", layout="wide")
+    st.title("Travel Assistant · Agent Control Demo")
     st.caption(
-        "Step 1 books a flight via a deterministic LLM that optionally leaks PII. "
-        "A PII control evaluates the flight trace. Step 2 (hotel booking) only runs "
-        "when Step 1 is not denied."
+        "Two scenarios: "
+        "(A) **PII deny** — the flight LLM leaks PII and the trace is denied, blocking hotel booking. "
+        "(B) **Steer to step 1a** — the flight LLM fails to advance the goal; the "
+        "`agentic_workflow_success` control fires steer and the agent retries via an "
+        "alternative airline before proceeding to hotel booking."
     )
 
     with st.form("travel_inputs"):
@@ -668,10 +885,17 @@ def main() -> None:
         check_out = checkout_col.text_input("Check-out", value="2026-11-03")
 
         st.markdown("#### Scenario control")
-        leak_pii = st.checkbox(
-            "LLM leaks PII in flight confirmation (triggers control)",
-            value=True,
+        scenario = st.radio(
+            "Pick one scenario:",
+            options=[
+                "None — clean run (allow)",
+                "Scenario A — LLM leaks PII in flight confirmation (PII deny control fires)",
+                "Scenario B — LLM returns vague non-advancing response (steer → step 1a via alternative airline)",
+            ],
+            index=0,
         )
+        leak_pii = scenario.startswith("Scenario A")
+        simulate_bad_booking = scenario.startswith("Scenario B")
 
         submitted = st.form_submit_button(
             "Run Travel Workflow", type="primary", use_container_width=True
@@ -689,6 +913,7 @@ def main() -> None:
             check_in=check_in,
             check_out=check_out,
             leak_pii=leak_pii,
+            simulate_bad_booking=simulate_bad_booking,
         )
         with st.spinner("Running travel workflow…"):
             st.session_state["travel_result"] = run_travel_workflow(inputs)
