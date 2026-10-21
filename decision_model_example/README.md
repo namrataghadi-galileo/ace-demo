@@ -125,9 +125,6 @@ Edit `decision_model_example/.env` and replace every placeholder. In particular:
 - `AGENT_CONTROL_URL` normally uses the Console proxy:
   `https://console-<stack>.gcp-dev.galileo.ai/api/agent-control`.
 - `AGENT_CONTROL_TARGET_ID` must equal `GALILEO_LOG_STREAM_ID`.
-- `DECISION_MODEL_CONTROL_NAME` must match the attached control name.
-- `DECISION_MODEL_SCORER_ID` and `DECISION_MODEL_SCORER_VERSION_ID` must match
-  the values configured on that control.
 
 The application loads only `decision_model_example/.env`; it does not depend on
 a repository-root `.env`. The committed `.gitignore` excludes the real `.env`.
@@ -212,7 +209,5 @@ UV_NO_CONFIG=1 uv run --project decision_model_example \
 - **No matching control:** confirm the control is attached to the exact
   `AGENT_CONTROL_TARGET_ID`, enabled, scoped to `tool`/`pre`, and uses selector
   path `input`.
-- **Preflight scorer mismatch:** make the two `DECISION_MODEL_SCORER_*` values in
-  `.env` match the attached control exactly.
 - **No control span:** confirm Galileo Agent Control telemetry is enabled and
   that application traces and controls target the same log-stream ID.

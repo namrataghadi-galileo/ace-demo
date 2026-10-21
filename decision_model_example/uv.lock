@@ -23,7 +23,6 @@ dependencies = [
     { name = "agent-control-sdk", extra = ["galileo", "otel"] },
     { name = "agent-control-telemetry" },
     { name = "galileo", extra = ["otel"] },
-    { name = "httpx" },
     { name = "python-dotenv" },
     { name = "streamlit" },
 ]
@@ -41,7 +40,6 @@ requires-dist = [
     { name = "agent-control-sdk", extras = ["galileo", "otel"], editable = "../../agent-control/sdks/python" },
     { name = "agent-control-telemetry", editable = "../../agent-control/telemetry" },
     { name = "galileo", extras = ["otel"], specifier = ">=2.6.0" },
-    { name = "httpx", specifier = ">=0.26.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "streamlit", specifier = ">=1.36" },
 ]

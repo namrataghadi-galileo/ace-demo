@@ -19,7 +19,6 @@ from decision_model_example.streamlit_app import (
     ControlEventCapture,
     normalize_api_root,
     runtime_environment,
-    verify_bound_control,
 )
 
 EXAMPLE_ROOT = Path(__file__).parents[1]
@@ -87,38 +86,6 @@ def test_non_denied_transfer_completes_normally() -> None:
     assert len(sandbox.transactions) == 1
 
 
-def test_existing_backend_control_is_validated_without_mutation() -> None:
-    control = {
-        "id": 1,
-        "name": CONTROL_NAME,
-        "data": {
-            "scope": {"step_types": ["tool"], "stages": ["pre"]},
-            "condition": {
-                "selector": {"path": "input"},
-                "evaluator": {
-                    "name": EVALUATOR_NAME,
-                    "config": {
-                        "scorer_id": "test-scorer-id",
-                        "scorer_version_id": "test-scorer-version-id",
-                    },
-                },
-            },
-            "action": {"decision": "deny"},
-        },
-    }
-
-    summary = verify_bound_control(
-        [control],
-        control_name=CONTROL_NAME,
-        scorer_id="test-scorer-id",
-        scorer_version_id="test-scorer-version-id",
-    )
-
-    assert summary["name"] == CONTROL_NAME
-    assert summary["evaluator"] == EVALUATOR_NAME
-    assert summary["stage"] == "pre"
-
-
 def test_diagnostic_sink_captures_real_control_events() -> None:
     from agent_control_models import ControlExecutionEvent
 
@@ -167,8 +134,6 @@ def test_runtime_environment_reads_the_example_configuration(monkeypatch) -> Non
     monkeypatch.setenv("AGENT_CONTROL_AGENT_NAME", "decision-model-demo")
     monkeypatch.delenv("AGENT_CONTROL_URL", raising=False)
     monkeypatch.delenv("AGENT_CONTROL_TARGET_ID", raising=False)
-    monkeypatch.setenv("DECISION_MODEL_SCORER_ID", "scorer-id")
-    monkeypatch.setenv("DECISION_MODEL_SCORER_VERSION_ID", "version-id")
 
     env = runtime_environment()
 
@@ -178,8 +143,6 @@ def test_runtime_environment_reads_the_example_configuration(monkeypatch) -> Non
     assert env.agent_name == "decision-model-demo"
     assert env.log_stream_id == "stream-id"
     assert env.target_id == "stream-id"
-    assert env.scorer_id == "scorer-id"
-    assert env.scorer_version_id == "version-id"
 
 
 def test_runtime_rejects_different_control_and_telemetry_streams(monkeypatch) -> None:
@@ -194,8 +157,6 @@ def test_runtime_rejects_different_control_and_telemetry_streams(monkeypatch) ->
     monkeypatch.setenv("GALILEO_LOG_STREAM", "stream-name")
     monkeypatch.setenv("AGENT_CONTROL_TARGET_TYPE", "log_stream")
     monkeypatch.setenv("AGENT_CONTROL_TARGET_ID", "control-stream")
-    monkeypatch.setenv("DECISION_MODEL_SCORER_ID", "scorer-id")
-    monkeypatch.setenv("DECISION_MODEL_SCORER_VERSION_ID", "version-id")
 
     with pytest.raises(RuntimeError, match="must equal GALILEO_LOG_STREAM_ID"):
         runtime_environment()
@@ -263,5 +224,14 @@ def test_example_env_contains_no_real_credentials() -> None:
     env_example = (EXAMPLE_ROOT / ".env.example").read_text()
 
     assert "GALILEO_API_KEY=<your-api-key>" in env_example
-    assert "DECISION_MODEL_SCORER_ID=<decision-model-scorer-id>" in env_example
+    assert "DECISION_MODEL_" not in env_example
     assert "namrata-ghadi" not in env_example
+
+
+def test_app_does_not_require_control_or_scorer_identity_configuration() -> None:
+    source = (EXAMPLE_ROOT / "streamlit_app.py").read_text()
+
+    assert "DECISION_MODEL_CONTROL_NAME" not in source
+    assert "DECISION_MODEL_SCORER_ID" not in source
+    assert "DECISION_MODEL_SCORER_VERSION_ID" not in source
+    assert "verify_bound_control" not in source

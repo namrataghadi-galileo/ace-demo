@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-import httpx
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -46,9 +45,6 @@ class RuntimeEnvironment:
     agent_name: str
     target_type: str
     target_id: str
-    control_name: str
-    scorer_id: str
-    scorer_version_id: str
 
 
 class ControlEventCapture:
@@ -101,7 +97,7 @@ def resolve_agent_control_api_key_header() -> str:
 
 
 def runtime_environment() -> RuntimeEnvironment:
-    """Resolve the credential, Galileo target, and Decision Models scorer."""
+    """Resolve the credential and shared Agent Control/Galileo target."""
     api_key = resolve_agent_control_api_key()
     console_url = _required_environment("GALILEO_CONSOLE_URL").rstrip("/")
     log_stream_id = _required_environment("GALILEO_LOG_STREAM_ID")
@@ -126,9 +122,6 @@ def runtime_environment() -> RuntimeEnvironment:
         agent_name=os.environ.get("AGENT_CONTROL_AGENT_NAME", DEFAULT_AGENT_NAME),
         target_type=target_type,
         target_id=target_id,
-        control_name=os.environ.get("DECISION_MODEL_CONTROL_NAME", CONTROL_NAME),
-        scorer_id=_required_environment("DECISION_MODEL_SCORER_ID"),
-        scorer_version_id=_required_environment("DECISION_MODEL_SCORER_VERSION_ID"),
     )
     return env
 
@@ -146,9 +139,6 @@ def _configure_process_environment(env: RuntimeEnvironment) -> None:
         "AGENT_CONTROL_AGENT_NAME": env.agent_name,
         "AGENT_CONTROL_TARGET_TYPE": env.target_type,
         "AGENT_CONTROL_TARGET_ID": env.target_id,
-        "DECISION_MODEL_CONTROL_NAME": env.control_name,
-        "DECISION_MODEL_SCORER_ID": env.scorer_id,
-        "DECISION_MODEL_SCORER_VERSION_ID": env.scorer_version_id,
     }
     os.environ.update(values)
 
@@ -169,95 +159,6 @@ def initialize_agent_control(env: RuntimeEnvironment) -> None:
     )
 
 
-def _nested_dicts(value: Any):
-    if isinstance(value, dict):
-        yield value
-        for item in value.values():
-            yield from _nested_dicts(item)
-    elif isinstance(value, list):
-        for item in value:
-            yield from _nested_dicts(item)
-
-
-def verify_bound_control(
-    controls: list[dict[str, Any]],
-    *,
-    control_name: str,
-    scorer_id: str,
-    scorer_version_id: str,
-) -> dict[str, Any]:
-    """Verify, but never create or modify, the pre-existing backend control."""
-    candidates = [item for item in controls if item.get("name") == control_name]
-    if len(candidates) != 1:
-        raise RuntimeError(
-            f"Expected exactly one bound control named {control_name!r}; found {len(candidates)}"
-        )
-    control = candidates[0]
-    definition = control.get("data") or control.get("control") or control.get("definition") or {}
-    nodes = list(_nested_dicts(definition))
-    scope = next((node for node in nodes if "step_types" in node and "stages" in node), {})
-    action = next((node for node in nodes if "decision" in node), {})
-    evaluator = next((node for node in nodes if node.get("name") == EVALUATOR_NAME), None)
-    config = evaluator.get("config", {}) if isinstance(evaluator, dict) else {}
-    selector = next((node for node in nodes if node.get("path") == "input"), None)
-    failures: list[str] = []
-    if scope.get("step_types") != ["tool"]:
-        failures.append("scope.step_types must be ['tool']")
-    if scope.get("stages") != ["pre"]:
-        failures.append("scope.stages must be ['pre']")
-    if action.get("decision") != "deny":
-        failures.append("action.decision must be 'deny'")
-    if evaluator is None:
-        failures.append(f"evaluator must be {EVALUATOR_NAME}")
-    if selector is None:
-        failures.append("condition selector must target input")
-    if config.get("scorer_id") != scorer_id:
-        failures.append("scorer_id does not match the Jev scorer")
-    if config.get("scorer_version_id") != scorer_version_id:
-        failures.append("scorer_version_id does not match the pinned Jev version")
-    if failures:
-        raise RuntimeError("Existing Jev control preflight failed: " + "; ".join(failures))
-    return {
-        "id": control.get("id"),
-        "name": control.get("name", control_name),
-        "evaluator": EVALUATOR_NAME,
-        "scorer_id": config.get("scorer_id"),
-        "scorer_version_id": config.get("scorer_version_id"),
-        "selector": "input",
-        "stage": "pre",
-        "step_type": "tool",
-        "action": "deny",
-    }
-
-
-async def read_bound_control(env: RuntimeEnvironment) -> dict[str, Any]:
-    async with httpx.AsyncClient(
-        base_url=env.agent_control_url.rstrip("/"),
-        headers={resolve_agent_control_api_key_header(): env.api_key},
-        timeout=30,
-    ) as client:
-        response = await client.get(
-            f"/api/v1/agents/{env.agent_name}/controls",
-            params={
-                "rendered_state": "rendered",
-                "enabled_state": "enabled",
-                "target_type": env.target_type,
-                "target_id": env.target_id,
-            },
-        )
-        response.raise_for_status()
-    body = response.json()
-    controls = body.get("controls") if isinstance(body, dict) else None
-    if not isinstance(controls, list):
-        raise TypeError("Agent Control returned an invalid controls response")
-    return verify_bound_control(
-        [item for item in controls if isinstance(item, dict)],
-        control_name=env.control_name,
-        scorer_id=env.scorer_id,
-        scorer_version_id=env.scorer_version_id,
-    )
-
-
 def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
 
@@ -269,12 +170,8 @@ def _count_control_spans(value: Any) -> int:
     return count
 
 
-def _captured_control_event(
-    capture: ControlEventCapture, control_name: str
-) -> dict[str, Any] | None:
+def _captured_control_event(capture: ControlEventCapture) -> dict[str, Any] | None:
     for event in reversed(capture.events):
-        if getattr(event, "control_name", None) != control_name:
-            continue
         if hasattr(event, "model_dump"):
             return event.model_dump(mode="json", exclude_none=True)
     return None
@@ -314,7 +211,6 @@ async def run_demo(request: TransferRequest, scenario: JevScenario) -> dict[str,
 
     try:
         initialize_agent_control(env)
-        control_config = await read_bound_control(env)
         sandbox = BankingSandbox()
         trace = logger.start_trace(
             input=request.user_request,
@@ -368,15 +264,18 @@ async def run_demo(request: TransferRequest, scenario: JevScenario) -> dict[str,
             request,
             submit_transfer,
             sandbox=sandbox,
-            control_name=env.control_name,
         )
-        control_event = _captured_control_event(capture, env.control_name)
+        control_event = _captured_control_event(capture)
         if control_event is not None:
             result["control_event"] = control_event
             control = result.get("control")
-            event_metadata = control_event.get("metadata")
-            if isinstance(control, dict) and isinstance(event_metadata, dict):
-                control["metadata"] = event_metadata
+            if isinstance(control, dict):
+                control["name"] = control_event.get("control_name", control.get("name"))
+                control["evaluator"] = control_event.get("evaluator_name", control.get("evaluator"))
+                control["message"] = control_event.get("message", control.get("message"))
+                event_metadata = control_event.get("metadata")
+                if isinstance(event_metadata, dict):
+                    control["metadata"] = event_metadata
         logger.add_tool_span(
             input=_json({"account_id": request.source_account_id}),
             output=_json(result["balance_check"]),
@@ -418,7 +317,6 @@ async def run_demo(request: TransferRequest, scenario: JevScenario) -> dict[str,
             {
                 "scenario": scenario.key,
                 "scenario_label": scenario.label,
-                "control_config": control_config,
                 "project_id": env.project_id,
                 "log_stream_id": env.log_stream_id,
                 "trace_id": str(trace.id),
@@ -439,7 +337,6 @@ def run_demo_sync(request: TransferRequest, scenario: JevScenario) -> dict[str, 
     try:
         result = asyncio.run(run_demo(request, scenario))
     except Exception as exc:  # noqa: BLE001 - render actionable E2E failures in Streamlit.
-        control_name = os.environ.get("DECISION_MODEL_CONTROL_NAME", CONTROL_NAME)
         result = {
             "scenario": scenario.key,
             "scenario_label": scenario.label,
@@ -449,13 +346,6 @@ def run_demo_sync(request: TransferRequest, scenario: JevScenario) -> dict[str, 
             "tool_input": request.__dict__,
             "tool_executed": False,
             "tool_output": None,
-            "control_config": {
-                "id": None,
-                "name": control_name,
-                "evaluator": EVALUATOR_NAME,
-                "scorer_id": os.environ.get("DECISION_MODEL_SCORER_ID"),
-                "scorer_version_id": os.environ.get("DECISION_MODEL_SCORER_VERSION_ID"),
-            },
             "error": f"{type(exc).__name__}: {exc}",
         }
     print("\n=== banking Jev result ===", file=sys.stderr, flush=True)
@@ -569,8 +459,8 @@ def main() -> None:
     st.set_page_config(page_title="Banking Agent: Jev tool control", layout="wide")
     st.title("Banking Agent · Jev pre-tool safety control")
     st.caption(
-        "A realistic in-memory transfer workflow protected by the existing "
-        f"`{os.environ.get('DECISION_MODEL_CONTROL_NAME', CONTROL_NAME)}` backend control. "
+        "A realistic in-memory transfer workflow protected by an enabled backend control "
+        "attached to this log stream. "
         "This app never creates or modifies controls."
     )
     selected_label = st.selectbox("Scenario", [item.label for item in SCENARIOS])

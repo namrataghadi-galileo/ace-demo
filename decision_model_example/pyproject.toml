@@ -9,7 +9,6 @@ dependencies = [
   "agent-control-engine>=8.14.0",
   "agent-control-telemetry>=8.14.0",
   "galileo[otel]>=2.6.0",
-  "httpx>=0.26.0",
   "python-dotenv>=1.0.0",
   "streamlit>=1.36",
 ]
