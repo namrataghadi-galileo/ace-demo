@@ -253,8 +253,8 @@ def test_scorer_and_control_template_uses_decision_models_with_placeholders() ->
     }
     assert definition["condition"]["selector"] == {"path": "input"}
     assert evaluator["name"] == EVALUATOR_NAME
-    assert evaluator["config"]["scorer_id"].startswith("<copy-from-galileo-ui:")
-    assert evaluator["config"]["scorer_version_id"].startswith("<copy-from-galileo-ui:")
+    assert evaluator["config"]["scorer_id"].startswith("<populated-by-backend:")
+    assert evaluator["config"]["scorer_version_id"].startswith("<populated-by-backend:")
     assert definition["action"] == {"decision": "deny"}
     assert template["binding"]["target_type"] == "log_stream"
 

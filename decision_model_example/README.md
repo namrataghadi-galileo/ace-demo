@@ -93,13 +93,12 @@ field-by-field source of truth and follow its `setup_order`:
 
 1. Open **Evaluators** and create the Decision Model scorer using every field in
    the JSON `evaluator` object.
-2. Save the scorer and version. Copy the generated scorer UUID and
-   scorer-version UUID into `evaluator.record_after_creation`.
+2. Save the scorer and version.
 3. Open **Controls** and create an organization-level control using the JSON
    `control` object and its `definition`.
-4. Replace both scorer placeholders in
-   `control.definition.condition.evaluator.config` with the IDs generated in
-   step 2. Do not use the display name or numeric version in place of a UUID.
+4. Select the scorer and scorer version in the UI. The backend populates the
+   `scorer_id` and `scorer_version_id`; the JSON placeholders only document the
+   resulting control shape.
 5. Save the control and attach—or clone and attach—it using the JSON `binding`
    object. Its target ID must be the same log-stream ID used by the application.
 
@@ -114,8 +113,8 @@ the same evaluator, scorer version, tool/pre scope, selector, and action. The
 application queries effective controls for the configured log-stream binding
 and fails its preflight check if these fields do not match.
 
-If the UI offers raw JSON entry, copy `control.definition` only after replacing
-its two scorer placeholders. Otherwise, enter those same fields through the UI.
+The example is intended to be configured through the UI so the scorer fields
+are populated by the backend.
 
 ## 3. Configure the local environment
 

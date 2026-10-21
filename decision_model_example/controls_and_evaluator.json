@@ -1,10 +1,10 @@
 {
   "setup_order": [
     "Create the decision-model scorer in Galileo Evaluators.",
-    "Record the generated scorer_id and scorer_version_id.",
-    "Create the Agent Control control and replace its scorer placeholders.",
+    "Create the Agent Control control and select the scorer and scorer version in the UI.",
     "Attach the control to the same log stream used by the application."
   ],
+  "backend_populated_fields_note": "When the scorer and scorer version are selected while creating the control in the UI, the backend populates scorer_id and scorer_version_id. The placeholder values below document the resulting control shape; users do not enter these UUIDs manually.",
   "evaluator": {
     "ui_section": "Evaluators",
     "name": "Banking Transfer Safety",
@@ -20,9 +20,9 @@
       "false": "The request is routine, appropriately scoped, and authorized."
     },
     "record_after_creation": {
-      "scorer_id": "<copy-from-galileo-ui:decision-model-scorer-id>",
+      "scorer_id": "<backend-generated:decision-model-scorer-id>",
       "scorer_version": 0,
-      "scorer_version_id": "<copy-from-galileo-ui:decision-model-scorer-version-id>"
+      "scorer_version_id": "<backend-generated:decision-model-scorer-version-id>"
     },
     "known_good_test_jev_reference": {
       "scorer_id": "3b50e50d-8fef-4062-91c7-df7004b549d7",
@@ -35,10 +35,6 @@
     "ui_section": "Controls",
     "name": "test-jev-banking-transfer-safety-deny-tool",
     "description": "Deny unsafe banking transfer tool calls using the Galileo Jev decision evaluator.",
-    "replace_before_use": {
-      "scorer_id": "Use evaluator.record_after_creation.scorer_id",
-      "scorer_version_id": "Use evaluator.record_after_creation.scorer_version_id"
-    },
     "definition": {
       "description": "Deny unsafe banking transfer tool calls using the Galileo Jev decision evaluator.",
       "enabled": true,
@@ -52,8 +48,8 @@
         "evaluator": {
           "name": "galileo.decision_models",
           "config": {
-            "scorer_id": "<copy-from-galileo-ui:decision-model-scorer-id>",
-            "scorer_version_id": "<copy-from-galileo-ui:decision-model-scorer-version-id>",
+            "scorer_id": "<populated-by-backend:selected-scorer-id>",
+            "scorer_version_id": "<populated-by-backend:selected-scorer-version-id>",
             "payload_field": "input",
             "operator": "gte",
             "threshold": 0.5,
