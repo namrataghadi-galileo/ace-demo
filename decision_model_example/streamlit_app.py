@@ -14,17 +14,32 @@ from urllib.parse import urlparse
 import streamlit as st
 from dotenv import load_dotenv
 
-from decision_model_example.cases import (
-    CONTROL_NAME,
-    EVALUATOR_NAME,
-    SCENARIOS,
-    STEP_NAME,
-    BankingSandbox,
-    JevScenario,
-    TransferRequest,
-    request_for_scenario,
-    run_banking_workflow,
-)
+try:
+    from decision_model_example.cases import (
+        CONTROL_NAME,
+        EVALUATOR_NAME,
+        SCENARIOS,
+        STEP_NAME,
+        BankingSandbox,
+        JevScenario,
+        TransferRequest,
+        request_for_scenario,
+        run_banking_workflow,
+    )
+except ModuleNotFoundError as exc:
+    if exc.name != "decision_model_example":
+        raise
+    from cases import (  # type: ignore[no-redef]
+        CONTROL_NAME,
+        EVALUATOR_NAME,
+        SCENARIOS,
+        STEP_NAME,
+        BankingSandbox,
+        JevScenario,
+        TransferRequest,
+        request_for_scenario,
+        run_banking_workflow,
+    )
 
 DEFAULT_AGENT_NAME = "banking-jev-streamlit"
 EXAMPLE_DIR = Path(__file__).resolve().parent
