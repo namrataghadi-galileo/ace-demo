@@ -244,7 +244,6 @@ def test_control_template_uses_decision_models_with_placeholders() -> None:
     assert definition["scope"] == {
         "step_types": ["tool"],
         "stages": ["pre"],
-        "step_name_regex": "^banking_jev_submit_transfer$",
     }
     assert definition["condition"]["selector"] == {"path": "input"}
     assert evaluator["name"] == EVALUATOR_NAME

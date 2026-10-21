@@ -1,26 +1,24 @@
 [
   {
     "name": "test-jev-banking-transfer-safety-deny-tool",
-    "description": "Deny an unsafe banking transfer before the transfer tool executes.",
+    "description": "Deny unsafe banking transfer tool calls using the Galileo Jev decision evaluator.",
     "manual_metadata": {
       "scorer_id": "<fill-from-galileo-ui:decision-model-scorer-id>",
       "scorer_version_id": "<fill-from-galileo-ui:decision-model-scorer-version-id>"
     },
     "definition": {
-      "description": "Use a Jev decision model to block unsafe banking transfers before execution.",
+      "description": "Deny unsafe banking transfer tool calls using the Galileo Jev decision evaluator.",
       "enabled": true,
       "execution": "server",
       "scope": {
         "step_types": ["tool"],
-        "stages": ["pre"],
-        "step_name_regex": "^banking_jev_submit_transfer$"
+        "stages": ["pre"]
       },
       "condition": {
         "selector": {"path": "input"},
         "evaluator": {
           "name": "galileo.decision_models",
           "config": {
-            "scorer_label": "Banking transfer safety",
             "scorer_id": "<fill-from-galileo-ui:decision-model-scorer-id>",
             "scorer_version_id": "<fill-from-galileo-ui:decision-model-scorer-version-id>",
             "payload_field": "input",
@@ -31,7 +29,7 @@
         }
       },
       "action": {"decision": "deny"},
-      "tags": ["banking", "decision-models", "jev", "tool"]
+      "tags": ["test-jev", "galileo", "jev", "tool", "deny", "runtime"]
     }
   }
 ]
