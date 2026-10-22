@@ -17,8 +17,10 @@ from common import (
 
 
 LUNA_SCORER_LABEL = "prompt_injection_luna"
+OUTPUT_TOXICITY_LUNA_SCORER_LABEL = "output_toxicity_luna"
 LUNA_OPERATOR = "gte"
 LUNA_THRESHOLD = 0.8
+OUTPUT_TOXICITY_LUNA_THRESHOLD = 0.5
 LUNA_TIMEOUT_MS = 30000
 
 
@@ -32,6 +34,20 @@ def luna_config() -> dict[str, Any] | None:
         "operator": LUNA_OPERATOR,
         "timeout_ms": LUNA_TIMEOUT_MS,
         "threshold": LUNA_THRESHOLD,
+    }
+
+
+def output_toxicity_luna_config() -> dict[str, Any] | None:
+    """Return the optional response-side Luna scorer used by the compatibility suite."""
+    scorer_id = os.environ.get("GALILEO_OUTPUT_TOXICITY_LUNA_SCORER_ID", "").strip()
+    if not scorer_id:
+        return None
+    return {
+        "scorer_id": scorer_id,
+        "scorer_label": OUTPUT_TOXICITY_LUNA_SCORER_LABEL,
+        "operator": LUNA_OPERATOR,
+        "timeout_ms": LUNA_TIMEOUT_MS,
+        "threshold": OUTPUT_TOXICITY_LUNA_THRESHOLD,
     }
 
 
@@ -56,6 +72,29 @@ def control_specs() -> list[tuple[str, dict[str, Any]]]:
                     },
                     "action": {"decision": "deny"},
                     "tags": ["demo", "galileo", "luna", "banking", "deny", "pre-llm"],
+                },
+            )
+        )
+
+    output_toxicity_config = output_toxicity_luna_config()
+    if output_toxicity_config is not None:
+        specs.append(
+            (
+                "demo-deny-luna-toxic-transfer-response",
+                {
+                    "description": "Block toxic generated banking responses with Galileo Luna.",
+                    "enabled": True,
+                    "execution": "server",
+                    "scope": {"step_types": ["llm"], "stages": ["post"]},
+                    "condition": {
+                        "selector": {"path": "output"},
+                        "evaluator": {
+                            "name": "galileo.luna",
+                            "config": output_toxicity_config,
+                        },
+                    },
+                    "action": {"decision": "deny"},
+                    "tags": ["demo", "galileo", "luna", "banking", "deny", "post-llm", "toxicity"],
                 },
             )
         )

@@ -4,6 +4,19 @@ Standalone demo app for exercising real Agent Control `ControlExecutionEvent`s t
 
 For a step-by-step Forward Deploy Engineer runbook, including manual Console setup, devstack routes, commands, and troubleshooting, see [`FDE_RUNBOOK.md`](FDE_RUNBOOK.md).
 
+For the deterministic banking workflow that independently exercises trace,
+session, LLM, tool, and retriever records through Agent Control and Orbit
+runtime scorers, see
+[`docs/11_banking_multilevel_runtime_e2e.md`](docs/11_banking_multilevel_runtime_e2e.md).
+It uses a separate Streamlit app and a separate manual-control catalog, leaving
+the existing banking controls unchanged.
+
+For the preset-SLM direct-runtime and LLM/tool record-compatibility tests for
+Orbit SAO-16056 and Agent Control, see
+[`docs/10_slm_runtime_e2e.md`](docs/10_slm_runtime_e2e.md). It uses the
+separate [`slm_runtime_streamlit_app.py`](slm_runtime_streamlit_app.py) so the
+existing banking demo remains unchanged.
+
 ## What This Demo Proves
 
 - Agent Control is installed and running as a remote service in the Galileo cluster.
@@ -58,6 +71,13 @@ with Galileo Luna. Create it through Console so the scorer selector stores the
 actual scorer ID. Scripted setup includes it only when
 `GALILEO_LUNA_SCORER_ID` is set to that ID; a scorer label is not a valid
 substitute in Agent Control 8.x.
+
+For the response-side Luna compatibility scenario, also set
+`GALILEO_OUTPUT_TOXICITY_LUNA_SCORER_ID` to the `output_toxicity_luna` scorer ID.
+Running `setup_controls.py` then creates
+`demo-deny-luna-toxic-transfer-response`, a post-LLM control that evaluates the
+generated response. Set `AGENT_CONTROL_EXPECTED_VERSION` only when you want the
+Streamlit app to reject a DevStack running a different Agent Control version.
 
 Create the controls at the log stream level in Console. The app uses Agent Control's `@control()` decorator, so control matching sees the decorated function names as step names:
 
@@ -273,14 +293,30 @@ Streamlit is installed by default when you run `$DEMO_PYTHON -m pip install .`.
 Run the app:
 
 ```bash
-cd /Users/namrataghadi/code/agent-control-galileo-e2e
+cd /Users/namratag/code/ace-demo
+export AGENT_CONTROL_SKIP_LUNA_CONTROL="false"
+export GALILEO_LUNA_SCORER_ID="<prompt-injection-scorer-id>"
+export GALILEO_OUTPUT_TOXICITY_LUNA_SCORER_ID="<output-toxicity-scorer-id>"
+
+# Create/update and bind the optional Luna controls before opening the app.
+"$DEMO_PYTHON" setup_controls.py \
+  --target-type "$AGENT_CONTROL_TARGET_TYPE" \
+  --target-id "$AGENT_CONTROL_TARGET_ID"
 "$DEMO_PYTHON" -m streamlit run banking_streamlit_app.py
 ```
+
+In the sidebar, enable **Exercise Luna controls**, then use **Run Luna
+compatibility suite**. The app uses the deployed Agent Control version unless
+`AGENT_CONTROL_EXPECTED_VERSION` is set explicitly. The suite fails closed if
+a required scorer ID is absent, an expected decision does not occur, or the
+resulting control telemetry cannot be read back.
 
 The app includes repeatable scenarios with automatic expected-result and
 control-telemetry checks for:
 
+- Luna prompt-injection allow (query-side success)
 - Luna prompt-injection denial
+- Luna output-toxicity denial (response-side success and enforcement)
 - `AND + NOT` 2FA steering
 - `OR` sanctioned-country denial
 - `OR` high-fraud-score denial
