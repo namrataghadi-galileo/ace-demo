@@ -6,9 +6,9 @@ import asyncio
 import json
 import os
 import re
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
-from datetime import UTC, datetime, timedelta
 
 import httpx
 from agent_control import ControlSteerError, ControlViolationError, control
@@ -229,7 +229,11 @@ def _compute_fraud_score(transfer: dict[str, Any], override: float | None) -> fl
     return 0.1
 
 
-def _draft_transfer_plan_impl(prompt: str, transfer: dict[str, Any]) -> str:
+def _draft_transfer_plan_impl(
+    prompt: str, transfer: dict[str, Any], response_override: str | None = None
+) -> str:
+    if response_override is not None:
+        return response_override
     return (
         "I parsed a wire-transfer request and will send it through compliance controls before execution. "
         f"Transfer: ${transfer['amount']:,.2f} to {transfer['recipient_name']} "
@@ -238,8 +242,10 @@ def _draft_transfer_plan_impl(prompt: str, transfer: dict[str, Any]) -> str:
 
 
 @control()
-async def draft_transfer_plan(prompt: str, transfer: dict[str, Any]) -> str:
-    return _draft_transfer_plan_impl(prompt, transfer)
+async def draft_transfer_plan(
+    prompt: str, transfer: dict[str, Any], response_override: str | None = None
+) -> str:
+    return _draft_transfer_plan_impl(prompt, transfer, response_override)
 
 
 @control()
