@@ -1,0 +1,13 @@
+{
+  "input_pii": "<preset-scorer-uuid>",
+  "input_sexist_luna": "<preset-scorer-uuid>",
+  "input_tone": "<preset-scorer-uuid>",
+  "input_toxicity_luna": "<preset-scorer-uuid>",
+  "prompt_injection_luna": "<preset-scorer-uuid>",
+  "output_pii": "<preset-scorer-uuid>",
+  "output_sexist_luna": "<preset-scorer-uuid>",
+  "output_tone": "<preset-scorer-uuid>",
+  "output_toxicity_luna": "<preset-scorer-uuid>",
+  "tool_selection_quality_luna": "<preset-scorer-uuid>",
+  "tool_error_rate_luna": "<preset-scorer-uuid>"
+}

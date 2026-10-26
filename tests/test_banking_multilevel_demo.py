@@ -16,6 +16,8 @@ from banking_multilevel_cases import (
     execute_banking_llm,
     execute_policy_search,
     execute_transfer,
+    recorder_session_step,
+    recorder_trace_step,
     scenario_record,
     step_tree,
 )
@@ -24,16 +26,53 @@ from banking_multilevel_streamlit_app import (
     _emit_record_spans,
     _evaluate_parent_scenario,
     _initialize_agent,
+    _log_result_to_stderr,
     _log_stream_url,
     _run_decorated_span_scenario,
+    _scenario_explanation,
     _scorer_response_from_evaluation,
     _tool_output_for_scorer,
     _verify_manual_controls,
     build_agent_control_step,
+    record_from_agent_control_step,
     scorer_invoke_request_preview,
 )
 
 ROOT = Path(__file__).parents[1]
+
+
+@pytest.mark.parametrize(
+    ("scenario", "expected_phrase"),
+    [
+        ("trace", "sensitive personal information"),
+        ("session", "approval-bypass attempt"),
+        ("llm", "selected `close_account`"),
+        ("tool", "`APPROVAL_REQUIRED`"),
+        ("retriever", "not relevant"),
+    ],
+)
+def test_denied_results_have_plain_language_explanations(
+    scenario: str, expected_phrase: str
+) -> None:
+    explanation = _scenario_explanation(
+        {"scenario": scenario, "decision": "deny", "outcome": "denied"}
+    )
+    assert expected_phrase in explanation
+
+
+def test_complete_result_is_logged_to_stderr(capsys) -> None:
+    _log_result_to_stderr(
+        {
+            "scenario": "llm",
+            "decision": "deny",
+            "record": {"type": "llm", "name": "example"},
+        }
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert '"decision": "deny"' in captured.err
+    assert '"record"' in captured.err
 
 
 def test_parent_evaluation_uses_active_galileo_context(monkeypatch) -> None:
@@ -53,10 +92,11 @@ def test_parent_evaluation_uses_active_galileo_context(monkeypatch) -> None:
 
     monkeypatch.setattr(agent_control, "evaluate_controls", fake_evaluate_controls)
     scenario = SCENARIO_BY_KEY["trace"]
+    step = recorder_trace_step()
     result = asyncio.run(
         _evaluate_parent_scenario(
             scenario,
-            scenario_record("trace"),
+            step,
             {"AGENT_CONTROL_AGENT_NAME": "banking-demo"},
             trace_id="1d053adf-cee0-4b84-bda8-3b197010e179",
             span_id="cf7a70bf-b9a3-4392-9ffc-61dd957873ac",
@@ -66,7 +106,21 @@ def test_parent_evaluation_uses_active_galileo_context(monkeypatch) -> None:
     assert captured["trace_id"] == "1d053adf-cee0-4b84-bda8-3b197010e179"
     assert captured["span_id"] == "cf7a70bf-b9a3-4392-9ffc-61dd957873ac"
     assert captured["step_type"] == "trace"
+    assert captured["children"] == step.children
+    assert captured["context"] == step.context
     assert result["evaluation_path"] == "evaluate_controls"
+
+
+@pytest.mark.parametrize(
+    ("scenario_key", "builder"),
+    [("trace", recorder_trace_step), ("session", recorder_session_step)],
+)
+def test_recorder_built_parent_records_match_existing_e2e_shapes(
+    scenario_key: str, builder
+) -> None:
+    step = builder()
+
+    assert record_from_agent_control_step(step) == scenario_record(scenario_key)
 
 
 def test_scenario_selection_covers_exactly_five_levels() -> None:
@@ -85,7 +139,9 @@ def test_scenario_selection_covers_exactly_five_levels() -> None:
         "retriever",
     }
     assert len({scenario.step_name for scenario in SCENARIOS}) == 5
-    assert all(scenario.step_name_regex == f"^{scenario.step_name}$" for scenario in SCENARIOS)
+    assert all(
+        scenario.step_name_regex == f"^{scenario.step_name}$" for scenario in SCENARIOS
+    )
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda scenario: scenario.key)
@@ -120,7 +176,10 @@ def test_trace_and_session_have_nested_child_steps() -> None:
     session = scenario_record("session")
     assert {span["type"] for span in trace["spans"]} == {"llm", "tool", "retriever"}
     assert len(session["traces"]) == 2
-    assert all({span["type"] for span in trace["spans"]} == {"llm", "tool"} for trace in session["traces"])
+    assert all(
+        {span["type"] for span in trace["spans"]} == {"llm", "tool"}
+        for trace in session["traces"]
+    )
     assert len(step_tree(session)) == 7
 
 
@@ -239,8 +298,14 @@ def test_trace_children_are_captured_from_executed_functions() -> None:
     trace = scenario_record("trace")
     children = {span["type"]: span for span in trace["spans"]}
 
-    assert children["retriever"]["metadata"]["executed_function"] == "search_policy_documents"
-    assert children["tool"]["metadata"]["executed_function"] == "BankingSandbox.lookup_account"
+    assert (
+        children["retriever"]["metadata"]["executed_function"]
+        == "search_policy_documents"
+    )
+    assert (
+        children["tool"]["metadata"]["executed_function"]
+        == "BankingSandbox.lookup_account"
+    )
     assert children["llm"]["metadata"]["executed_function"] == "run_banking_model"
     assert all(child["metadata"]["executed"] is True for child in children.values())
     assert trace["output"]["message"] == children["llm"]["output"]["content"]
@@ -556,19 +621,33 @@ def test_scorer_response_view_keeps_allow_score_and_status() -> None:
     }
 
 
-def test_banking_project_uses_local_agent_control_sources() -> None:
+def test_banking_project_uses_published_agent_control_and_galileo() -> None:
     sources = _dependency_sources()
-    assert all("/code/agent-control/" in path for path in sources.values())
+    assert all(
+        "/code/agent-control/" not in path and "/code/galileo-python/" not in path
+        for path in sources.values()
+    )
+    from galileo.logger.control import ControlAppliesTo
+
+    assert {"retriever_call", "trace_call", "session_call"} <= {m.value for m in ControlAppliesTo}
 
 
-def test_local_dependency_override_and_no_sources_escape_hatch_are_documented() -> None:
+def test_streamlit_uses_reusable_recorder_workflows_not_comparison_demo() -> None:
+    app_source = (ROOT / "banking_multilevel_streamlit_app.py").read_text()
+    assert "recorder_trace_step" in app_source
+    assert "recorder_session_step" in app_source
+    assert "step_recorder_vs_manual_demo" not in app_source
+
+
+def test_dependencies_are_published_and_documented() -> None:
     pyproject = (ROOT / "banking-multilevel" / "pyproject.toml").read_text()
     docs = (ROOT / "docs" / "11_banking_multilevel_runtime_e2e.md").read_text()
-    assert "[tool.uv.sources]" in pyproject
-    assert "../../agent-control/sdks/python" in pyproject
-    assert "../../agent-control/evaluators/contrib/galileo" in pyproject
-    assert '"galileo[otel]>=2.3.0"' in pyproject
-    assert "--no-sources" in docs
+    assert "[tool.uv.sources]" not in pyproject
+    assert '"agent-control-sdk[galileo,otel]==8.13.0"' in pyproject
+    assert "../../agent-control/" not in pyproject
+    assert "galileo-python" not in pyproject
+    assert '"galileo[otel]>=2.7.0"' in pyproject
+    assert "No local Agent Control or Galileo checkout is required" in docs
     assert "AGENT_CONTROL_URL" in docs
 
 
@@ -585,7 +664,9 @@ def test_demo_contains_no_real_external_banking_calls() -> None:
         for node in ast.walk(cases_tree)
         if isinstance(node, ast.ImportFrom)
     }
-    assert not ({"httpx", "requests", "urllib", "socket"} & (imported_roots | imported_from))
-    assert "external_call\": False" in cases_source
+    assert not (
+        {"httpx", "requests", "urllib", "socket"} & (imported_roots | imported_from)
+    )
+    assert 'external_call": False' in cases_source
     app_source = (ROOT / "banking_multilevel_streamlit_app.py").read_text()
     assert ".post(" not in app_source

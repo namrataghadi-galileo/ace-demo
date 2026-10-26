@@ -9,9 +9,9 @@ description = "Standalone banking demo for Agent Control evaluations emitted as 
 requires-python = ">=3.12,<3.15"
 dependencies = [
   "galileo[openai,otel]>=2.3.0",
-  "agent-control-sdk[galileo,otel]>=7.10.0",
-  "agent-control-evaluators>=7.10.0",
-  "agent-control-evaluator-galileo>=7.10.0",
+  "agent-control-sdk[galileo,otel]==8.7.0",
+  "agent-control-evaluators==8.7.0",
+  "agent-control-evaluator-galileo==8.7.0",
   "httpx>=0.26.0",
   "streamlit>=1.36",
 ]
@@ -24,4 +24,6 @@ py-modules = [
   "run_demo",
   "run_demo_otel",
   "setup_controls",
+  "slm_runtime_controls",
+  "slm_runtime_streamlit_app",
 ]
