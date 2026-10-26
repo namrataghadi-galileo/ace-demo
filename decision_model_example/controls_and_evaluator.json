@@ -33,7 +33,7 @@
   },
   "control": {
     "ui_section": "Controls",
-    "name": "test-jev-banking-transfer-safety-deny-tool",
+    "name": "banking-transfer-safety-deny-tool",
     "description": "Deny unsafe banking transfer tool calls using the Galileo Jev decision evaluator.",
     "definition": {
       "description": "Deny unsafe banking transfer tool calls using the Galileo Jev decision evaluator.",
@@ -58,7 +58,7 @@
         }
       },
       "action": {"decision": "deny"},
-      "tags": ["test-jev", "galileo", "jev", "tool", "deny", "runtime"]
+      "tags": ["decision-model", "galileo", "jev", "tool", "deny", "runtime"]
     }
   },
   "binding": {

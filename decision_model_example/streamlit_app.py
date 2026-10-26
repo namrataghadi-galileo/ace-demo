@@ -41,7 +41,7 @@ except ModuleNotFoundError as exc:
         run_banking_workflow,
     )
 
-DEFAULT_AGENT_NAME = "banking-jev-streamlit"
+DEFAULT_AGENT_NAME = "decision-model-banking-streamlit"
 EXAMPLE_DIR = Path(__file__).resolve().parent
 
 load_dotenv(EXAMPLE_DIR / ".env", override=True)
@@ -229,12 +229,12 @@ async def run_demo(request: TransferRequest, scenario: JevScenario) -> dict[str,
         sandbox = BankingSandbox()
         trace = logger.start_trace(
             input=request.user_request,
-            name="banking_jev_transfer_request",
+            name="decision_model_transfer_request",
             metadata={"scenario": scenario.key, "evaluator": EVALUATOR_NAME},
         )
         workflow = logger.add_workflow_span(
             input=request.user_request,
-            name="banking_jev_transfer_workflow",
+            name="decision_model_transfer_workflow",
             metadata={"control_stage": "pre", "control_step_type": "tool"},
         )
     except Exception:
@@ -481,7 +481,7 @@ def main() -> None:
     selected_label = st.selectbox("Scenario", [item.label for item in SCENARIOS])
     scenario = next(item for item in SCENARIOS if item.label == selected_label)
     st.info(scenario.description)
-    with st.form(f"banking-jev::{scenario.key}"):
+    with st.form(f"decision-model::{scenario.key}"):
         request = _interactive_request(scenario)
         submitted = st.form_submit_button(
             "Run protected transfer", type="primary", use_container_width=True
@@ -495,8 +495,8 @@ def main() -> None:
             with st.spinner(
                 "Checking the account, validating the recipient, and evaluating the transfer..."
             ):
-                st.session_state["banking_jev_result"] = run_demo_sync(request, scenario)
-    result = st.session_state.get("banking_jev_result")
+                st.session_state["decision_model_result"] = run_demo_sync(request, scenario)
+    result = st.session_state.get("decision_model_result")
     if result is not None and result.get("scenario") == scenario.key:
         render_result(result)
 

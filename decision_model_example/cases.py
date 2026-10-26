@@ -6,9 +6,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from typing import Any
 
-CONTROL_NAME = "test-jev-banking-transfer-safety-deny-tool"
+CONTROL_NAME = "banking-transfer-safety-deny-tool"
 EVALUATOR_NAME = "galileo.decision_models"
-STEP_NAME = "banking_jev_submit_transfer"
+STEP_NAME = "decision_model_submit_transfer"
 
 
 @dataclass(frozen=True)
