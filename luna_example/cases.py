@@ -109,7 +109,9 @@ SCENARIOS: tuple[BankingScenario, ...] = (
     BankingScenario(
         key="tool",
         label="Tool: deterministic transfer error",
-        description="The sandbox transfer function returns an explicit approval error with no side effect.",
+        description=(
+            "The sandbox transfer function returns an explicit approval error with no side effect."
+        ),
         level="tool",
         request="Submit the planned transfer for account acct-1001.",
         step_name="banking_multilevel_tool_transfer_error",
@@ -122,7 +124,9 @@ SCENARIOS: tuple[BankingScenario, ...] = (
     BankingScenario(
         key="retriever",
         label="Retriever: irrelevant policy results",
-        description="A real lexical search is intentionally restricted to the wrong policy partition.",
+        description=(
+            "A real lexical search is intentionally restricted to the wrong policy partition."
+        ),
         level="retriever",
         request="What identification is required for a domestic wire transfer?",
         step_name="banking_multilevel_retriever_irrelevant_policy",

@@ -5,7 +5,7 @@ Agent Control PR #287 (https://github.com/agentcontrol/agent-control/pull/287)
 added `agent_control.record_step()` / `StepRecorder` as an incremental way to
 build a trace/session `Step` tree. Before that, the only way to populate
 `Step.children` was the hand-built record pattern retained in
-`banking_multilevel_cases.py` for comparison:
+`luna_example/cases.py` for comparison:
 
   1. Every leaf function returns a `StepExecution(value=..., record=...)` -
      the real return value plus a hand-built dict shaped like a `Step`.
@@ -16,7 +16,7 @@ build a trace/session `Step` tree. Before that, the only way to populate
   4. `evaluate_controls()` is called with the built `Step`'s fields unpacked
      back out again (input=, output=, children=, ...).
 
-The reusable StepRecorder workflows live in `banking_multilevel_cases.py`;
+The reusable StepRecorder workflows live in `luna_example/cases.py`;
 the Streamlit app imports them directly. This separate script builds the
 *same* three scenarios both ways and asserts the
 resulting `Step` trees are byte-for-byte equivalent - including `context`,
@@ -25,9 +25,9 @@ can see directly, not just read a claim, that the new API produces the same
 result with less code and no intermediate dict:
 
   - "trace":   one trace with retriever + tool + llm children
-               (mirrors banking_multilevel_cases.trace_record)
+               (mirrors luna_example.cases.trace_record)
   - "session": one session nesting two traces, each with llm + tool children
-               (mirrors banking_multilevel_cases.session_record)
+               (mirrors luna_example.cases.session_record)
   - "empty":   a trace that ran with zero children, built once with the
                default omitted-children behavior and once opting into
                `container_types` to get `children=[]` instead - the one
@@ -65,12 +65,12 @@ import os
 from typing import Any
 
 from agent_control_models import Step
-
-from banking_multilevel_cases import (
+from luna_example.cases import (
     recorder_session_step,
     recorder_trace_step,
     scenario_record,
 )
+
 from common import (
     DEFAULT_AGENT_CONTROL_URL,
     resolve_agent_control_api_key,
@@ -194,7 +194,8 @@ def print_source_contrast(old_fn: Any, new_fn: Any) -> None:
     old_source = inspect.getsource(old_fn)
     new_source = inspect.getsource(new_fn)
     print(
-        f"\n--- old way: {old_fn.__module__}.{old_fn.__name__} ({len(old_source.splitlines())} lines) ---"
+        f"\n--- old way: {old_fn.__module__}.{old_fn.__name__} "
+        f"({len(old_source.splitlines())} lines) ---"
     )
     print(old_source.rstrip())
     print(
@@ -203,7 +204,8 @@ def print_source_contrast(old_fn: Any, new_fn: Any) -> None:
         "converter build_agent_control_step(), none of which the new way needs)"
     )
     print(
-        f"\n--- new way: {new_fn.__module__}.{new_fn.__name__} ({len(new_source.splitlines())} lines) ---"
+        f"\n--- new way: {new_fn.__module__}.{new_fn.__name__} "
+        f"({len(new_source.splitlines())} lines) ---"
     )
     print(new_source.rstrip())
 
@@ -303,7 +305,8 @@ def main() -> None:
         for label, step in (("old", old_step), ("new", new_step)):
             if step is not None:
                 print(
-                    f"\n[{scenario}:{label}] {json.dumps(comparable(step), indent=2, sort_keys=True)}"
+                    f"\n[{scenario}:{label}] "
+                    f"{json.dumps(comparable(step), indent=2, sort_keys=True)}"
                 )
 
         if old_step is not None and new_step is not None:
@@ -314,7 +317,7 @@ def main() -> None:
                 )
 
     if args.scenario in ("all", "trace") and args.mode == "both":
-        from banking_multilevel_cases import trace_record
+        from luna_example.cases import trace_record
 
         print_source_contrast(trace_record, new_way_trace)
 

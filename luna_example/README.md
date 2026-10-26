@@ -2,7 +2,7 @@
 
 ## What this example tests
 
-`banking_multilevel_streamlit_app.py` is a deterministic, executable banking
+`streamlit_app.py` is a deterministic, executable banking
 agent example beside the existing transfer demo. It does not change controls or
 call a production bank/payment API. Each UI scenario runs concrete functions
 against a stateful in-memory banking sandbox, captures their actual arguments
@@ -56,7 +56,7 @@ intentionally creates a separate steer variant.
 
 ## Manual controls and scorer metadata
 
-Use [`banking_multilevel_controls.json`](../banking_multilevel_controls.json)
+Use [`controls.json`](controls.json)
 as the UI field reference. Do not import its placeholder strings as real IDs.
 Create and attach these five controls to the log-stream target used by the app:
 
@@ -118,29 +118,22 @@ session, and trace IDs plus a direct Console link.
 
 ## Environment
 
-Use the repository's `.env` convention. A safe template is provided in
-`.env.banking-multilevel-example`:
+Use this folder's `.env` file. Copy the safe template and replace its
+environment-specific placeholders:
 
 ```bash
-export GALILEO_API_KEY="<your-api-key>"
-export GALILEO_CONSOLE_URL="https://console-test-evals.gcp-dev.galileo.ai"
-export GALILEO_API_URL="https://api-test-evals.gcp-dev.galileo.ai"
-export GALILEO_PROJECT="agent-control-banking-demo-project"
-export GALILEO_LOG_STREAM="agent-control-banking-demo-logstream"
-export GALILEO_LOG_STREAM_ID="<your-log-stream-id>"
-export AGENT_CONTROL_URL="https://agent-control-test-evals.gcp-dev.galileo.ai"
-export AGENT_CONTROL_AGENT_NAME="banking-multilevel-runtime-demo"
-export AGENT_CONTROL_TARGET_TYPE="log_stream"
-export AGENT_CONTROL_TARGET_ID="$GALILEO_LOG_STREAM_ID"
-export AGENT_CONTROL_API_KEY_HEADER="Galileo-API-Key"
+cd luna_example
+cp .env.example .env
+# Edit .env with values from the same Galileo environment.
 ```
 
 `AGENT_CONTROL_TARGET_ID` must be the actual log-stream ID, not its display
-name. Credentials remain in environment variables only.
+name. The app loads `.env` from this folder. Credentials remain in environment
+variables only.
 
 ## Published Agent Control and Galileo SDKs
 
-The dedicated `banking-multilevel/pyproject.toml` installs
+The dedicated `pyproject.toml` installs
 `agent-control-sdk[galileo,otel]==8.13.0` and `galileo[otel]>=2.7.0` from PyPI.
 Agent Control 8.13.0 supplies the trace/session StepRecorder behavior used by
 this app. Galileo Python 2.7.0 is the first release that accepts the
@@ -152,11 +145,13 @@ No local Agent Control or Galileo checkout is required.
 These are client dependencies only. The client still talks to
 `AGENT_CONTROL_URL` in the DevStack, and Orbit stays in the DevStack.
 
+Run directly from this folder. No repository-root Python modules are needed.
+
 ```bash
-cd /Users/namratag/code/ace-demo
-UV_NO_CONFIG=1 uv sync --project banking-multilevel --default-index https://pypi.org/simple
-UV_NO_CONFIG=1 uv run --project banking-multilevel --default-index https://pypi.org/simple \
-  streamlit run banking_multilevel_streamlit_app.py
+cd luna_example
+UV_NO_CONFIG=1 uv sync --locked --default-index https://pypi.org/simple
+UV_NO_CONFIG=1 uv run --locked --default-index https://pypi.org/simple \
+  streamlit run streamlit_app.py
 ```
 
 ## Run one level independently
@@ -195,11 +190,11 @@ matches.
 ## Tests and lint
 
 ```bash
-UV_NO_CONFIG=1 uv run --project banking-multilevel --default-index https://pypi.org/simple \
-  python -m pytest -q tests/test_banking_multilevel_demo.py
-UV_NO_CONFIG=1 uv run --project banking-multilevel --default-index https://pypi.org/simple \
-  ruff check banking_multilevel_cases.py banking_multilevel_streamlit_app.py \
-  tests/test_banking_multilevel_demo.py
+cd luna_example
+UV_NO_CONFIG=1 uv run --locked --default-index https://pypi.org/simple \
+  python -m pytest -q tests/test_demo.py
+UV_NO_CONFIG=1 uv run --locked --default-index https://pypi.org/simple \
+  ruff check .
 ```
 
 ## Current DevStack limitations
