@@ -13,12 +13,10 @@ intend to use, then follow that folder's setup and run instructions. The
 example requires a Decision Models evaluator deployment and a control attached
 to the same log stream as its Galileo traces.
 
-For the deterministic banking workflow that independently exercises trace,
-session, LLM, tool, and retriever records through Agent Control and Orbit
-runtime scorers, see
-[`docs/11_banking_multilevel_runtime_e2e.md`](docs/11_banking_multilevel_runtime_e2e.md).
-It uses a separate Streamlit app and a separate manual-control catalog, leaving
-the existing banking controls unchanged.
+For the standalone Luna-backed banking example that independently exercises
+trace, session, LLM, tool, and retriever records, see
+[`luna_example/`](luna_example/README.md). Its app, scenarios, controls,
+environment template, dependency lock, and tests are kept together.
 
 For the preset-SLM direct-runtime and LLM/tool record-compatibility tests for
 Orbit SAO-16056 and Agent Control, see
