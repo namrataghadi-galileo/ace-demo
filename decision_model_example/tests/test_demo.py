@@ -93,7 +93,7 @@ def test_diagnostic_sink_captures_real_control_events() -> None:
     event = ControlExecutionEvent(
         trace_id="trace-1",
         span_id="span-1",
-        agent_name="banking-jev-streamlit",
+        agent_name="decision-model-banking-streamlit",
         control_id=1,
         control_name=CONTROL_NAME,
         check_stage="pre",
@@ -170,7 +170,7 @@ def test_app_uses_control_decorator_and_never_calls_evaluate_controls() -> None:
     assert "client.put(" not in source
     assert "client.post(" not in source
     assert "start_session(" not in source
-    assert STEP_NAME == "banking_jev_submit_transfer"
+    assert STEP_NAME == "decision_model_submit_transfer"
 
 
 def test_jev_project_uses_only_local_agent_control_sources() -> None:

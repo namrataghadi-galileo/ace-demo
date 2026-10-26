@@ -4,6 +4,15 @@ Standalone demo app for exercising real Agent Control `ControlExecutionEvent`s t
 
 For a step-by-step Forward Deploy Engineer runbook, including manual Console setup, devstack routes, commands, and troubleshooting, see [`FDE_RUNBOOK.md`](FDE_RUNBOOK.md).
 
+## Decision Models banking example
+
+The repository's interactive Decision Models banking example lives in
+[`decision_model_example/`](decision_model_example/README.md). Configure its
+own `decision_model_example/.env` for the staging environment or DevStack you
+intend to use, then follow that folder's setup and run instructions. The
+example requires a Decision Models evaluator deployment and a control attached
+to the same log stream as its Galileo traces.
+
 For the deterministic banking workflow that independently exercises trace,
 session, LLM, tool, and retriever records through Agent Control and Orbit
 runtime scorers, see

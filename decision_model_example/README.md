@@ -122,9 +122,20 @@ cp decision_model_example/.env.example decision_model_example/.env
 Edit `decision_model_example/.env` and replace every placeholder. In particular:
 
 - `GALILEO_API_KEY` is a real secret and must never be committed.
-- `AGENT_CONTROL_URL` normally uses the Console proxy:
-  `https://console-<stack>.gcp-dev.galileo.ai/api/agent-control`.
+- Use the Console URL, API URL, Agent Control URL, project, log stream, and API
+  key from the same staging environment. The Agent Control URL normally uses
+  that environment's Console proxy: `<GALILEO_CONSOLE_URL>/api/agent-control`.
 - `AGENT_CONTROL_TARGET_ID` must equal `GALILEO_LOG_STREAM_ID`.
+
+The required values are `GALILEO_API_KEY`, `GALILEO_CONSOLE_URL`,
+`GALILEO_API_URL`, `GALILEO_PROJECT_ID`, `GALILEO_PROJECT`,
+`GALILEO_LOG_STREAM_ID`, and `GALILEO_LOG_STREAM`. The app defaults
+`AGENT_CONTROL_URL` to the Console proxy, `AGENT_CONTROL_TARGET_TYPE` to
+`log_stream`, `AGENT_CONTROL_TARGET_ID` to `GALILEO_LOG_STREAM_ID`,
+`AGENT_CONTROL_AGENT_NAME` to `decision-model-banking-streamlit`, and the API-key header
+to `Galileo-API-Key`. Keep `AGENT_CONTROL_RUNTIME_AUTH_MODE=jwt` for the
+staging runtime-token flow. `AGENT_CONTROL_API_KEY` is populated from
+`GALILEO_API_KEY` when the app starts.
 
 The application loads only `decision_model_example/.env`; it does not depend on
 a repository-root `.env`. The committed `.gitignore` excludes the real `.env`.
