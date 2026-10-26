@@ -138,20 +138,16 @@ export AGENT_CONTROL_API_KEY_HEADER="Galileo-API-Key"
 `AGENT_CONTROL_TARGET_ID` must be the actual log-stream ID, not its display
 name. Credentials remain in environment variables only.
 
-## Published Agent Control and local Galileo SDK
+## Published Agent Control and Galileo SDKs
 
 The dedicated `banking-multilevel/pyproject.toml` installs
-`agent-control-sdk[galileo,otel]==8.13.0` and its published dependencies from
-PyPI. That release supplies the trace/session StepRecorder behavior used by
-this app. No local Agent Control checkout is required.
+`agent-control-sdk[galileo,otel]==8.13.0` and `galileo[otel]>=2.7.0` from PyPI.
+Agent Control 8.13.0 supplies the trace/session StepRecorder behavior used by
+this app. Galileo Python 2.7.0 is the first release that accepts the
+`retriever_call`, `trace_call`, and `session_call` control spans (earlier
+releases, including 2.6.0, support only `llm_call` and `tool_call`).
 
-The project still resolves `galileo` from the sibling
-`/Users/namratag/code/galileo-python` checkout because its control-span changes
-have not been published yet:
-
-- Galileo Python accepts `retriever_call`, `trace_call`, and `session_call`
-  control spans. The latest PyPI release (`galileo==2.6.0`) supports only
-  `llm_call` and `tool_call`, so it cannot replace the local checkout yet.
+No local Agent Control or Galileo checkout is required.
 
 These are client dependencies only. The client still talks to
 `AGENT_CONTROL_URL` in the DevStack, and Orbit stays in the DevStack.
@@ -160,16 +156,6 @@ These are client dependencies only. The client still talks to
 cd /Users/namratag/code/ace-demo
 UV_NO_CONFIG=1 uv sync --project banking-multilevel --default-index https://pypi.org/simple
 UV_NO_CONFIG=1 uv run --project banking-multilevel --default-index https://pypi.org/simple \
-  streamlit run banking_multilevel_streamlit_app.py
-```
-
-Adding `--no-sources` disables the remaining local Galileo override. Do not use
-this mode for trace, session, or retriever control-span tests until a compatible
-Galileo Python release is published:
-
-```bash
-UV_NO_CONFIG=1 uv sync --project banking-multilevel --no-sources --default-index https://pypi.org/simple
-UV_NO_CONFIG=1 uv run --project banking-multilevel --no-sources --default-index https://pypi.org/simple \
   streamlit run banking_multilevel_streamlit_app.py
 ```
 
