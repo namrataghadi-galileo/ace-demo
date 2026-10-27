@@ -62,8 +62,8 @@
             "config": {
               "scorer_id": "<populated-by-backend:output-pii-scorer-id>",
               "scorer_version_id": "<populated-by-backend:output-pii-scorer-version-id>",
-              "operator": "gte",
-              "threshold": 0.5,
+              "operator": "contains",
+              "threshold": "email",
               "timeout_ms": 30000
             }
           }

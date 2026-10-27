@@ -103,8 +103,8 @@ Controls can be created and attached in two ways:
    - Evaluator type: `llm`
    - Path: `output`
    - Evaluator: select **Output PII** from the scorer dropdown
-   - Comparison value: `0.5`
-   - Operator: `gte`
+   - Comparison value: `email`
+   - Operator: `contains`
    - Payload Field: leave unset
    - Timeout Ms: `30000`
 
