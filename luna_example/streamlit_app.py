@@ -19,32 +19,58 @@ import httpx
 import streamlit as st
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).with_name(".env"))
 
-from banking_multilevel_cases import (
-    SCENARIOS,
-    TOOL_DEFINITIONS,
-    BankingSandbox,
-    BankingScenario,
-    BankingScenarioInput,
-    default_scenario_input,
-    recorder_session_step,
-    recorder_trace_step,
-    run_banking_model,
-    scenario_record,
-    search_policy_documents,
-    step_tree,
-)
-from common import (
-    DEFAULT_AGENT_CONTROL_URL,
-    DEFAULT_CONSOLE_URL,
-    DEFAULT_LOG_STREAM,
-    DEFAULT_PROJECT,
-    resolve_agent_control_api_key,
-    resolve_agent_control_api_key_header,
-)
+try:
+    from luna_example.cases import (
+        SCENARIOS,
+        TOOL_DEFINITIONS,
+        BankingSandbox,
+        BankingScenario,
+        BankingScenarioInput,
+        default_scenario_input,
+        recorder_session_step,
+        recorder_trace_step,
+        run_banking_model,
+        scenario_record,
+        search_policy_documents,
+        step_tree,
+    )
+    from luna_example.common import (
+        DEFAULT_AGENT_CONTROL_URL,
+        DEFAULT_CONSOLE_URL,
+        DEFAULT_LOG_STREAM,
+        DEFAULT_PROJECT,
+        resolve_agent_control_api_key,
+        resolve_agent_control_api_key_header,
+    )
+except ModuleNotFoundError as exc:
+    if exc.name != "luna_example":
+        raise
+    from cases import (  # type: ignore[no-redef]
+        SCENARIOS,
+        TOOL_DEFINITIONS,
+        BankingSandbox,
+        BankingScenario,
+        BankingScenarioInput,
+        default_scenario_input,
+        recorder_session_step,
+        recorder_trace_step,
+        run_banking_model,
+        scenario_record,
+        search_policy_documents,
+        step_tree,
+    )
+    from common import (  # type: ignore[no-redef]
+        DEFAULT_AGENT_CONTROL_URL,
+        DEFAULT_CONSOLE_URL,
+        DEFAULT_LOG_STREAM,
+        DEFAULT_PROJECT,
+        resolve_agent_control_api_key,
+        resolve_agent_control_api_key_header,
+    )
 
-CONTROL_CATALOG = Path(__file__).with_name("banking_multilevel_controls.json")
+CONTROL_CATALOG = Path(__file__).with_name("controls.json")
 DEFAULT_AGENT_NAME = "banking-multilevel-runtime-demo"
 
 
@@ -1008,9 +1034,14 @@ def _evaluator_metadata(result: dict[str, Any]) -> dict[str, Any]:
 def _scenario_explanation(result: dict[str, Any]) -> str:
     """Explain the outcome in banking language instead of exposing evaluator JSON."""
     if result.get("decision") == "error":
+        detail = (
+            result.get("error")
+            or result.get("reason")
+            or "Check the terminal log for details."
+        )
         return (
             "The workflow ran, but Agent Control could not complete the evaluation. "
-            f"{result.get('error') or result.get('reason') or 'Check the terminal log for details.'}"
+            f"{detail}"
         )
 
     denied = result.get("outcome") == "denied"
@@ -1020,13 +1051,15 @@ def _scenario_explanation(result: dict[str, Any]) -> str:
             "The complete transfer workflow was blocked because its final response "
             "contained sensitive personal information."
             if denied
-            else "The complete transfer workflow was allowed because no configured sensitive-data rule matched."
+            else "The complete transfer workflow was allowed because no configured "
+            "sensitive-data rule matched."
         ),
         "session": (
             "The banking session was blocked because the conversation repeated an "
             "approval-bypass attempt and completed a transfer without the required approval."
             if denied
-            else "The banking session was allowed because it did not complete a prohibited approval-bypass sequence."
+            else "The banking session was allowed because it did not complete a "
+            "prohibited approval-bypass sequence."
         ),
         "llm": (
             "The model response was blocked because it selected `close_account` even "
@@ -1038,13 +1071,15 @@ def _scenario_explanation(result: dict[str, Any]) -> str:
             "The tool result was blocked because the transfer failed with "
             "`APPROVAL_REQUIRED`; no transfer was created."
             if denied
-            else "The tool result was allowed because the transfer completed without a configured tool error."
+            else "The tool result was allowed because the transfer completed without "
+            "a configured tool error."
         ),
         "retriever": (
             "The retrieval result was blocked because the returned policy documents "
             "were not relevant to the wire-transfer question."
             if denied
-            else "The retrieval result was allowed because the returned policy documents were relevant to the question."
+            else "The retrieval result was allowed because the returned policy "
+            "documents were relevant to the question."
         ),
     }
     return explanations.get(

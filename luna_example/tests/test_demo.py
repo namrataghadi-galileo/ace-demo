@@ -7,36 +7,70 @@ from pathlib import Path
 
 import pytest
 
-from banking_multilevel_cases import (
-    SCENARIO_BY_KEY,
-    SCENARIOS,
-    BankingSandbox,
-    BankingScenarioInput,
-    execute_account_lookup,
-    execute_banking_llm,
-    execute_policy_search,
-    execute_transfer,
-    recorder_session_step,
-    recorder_trace_step,
-    scenario_record,
-    step_tree,
-)
-from banking_multilevel_streamlit_app import (
-    _dependency_sources,
-    _emit_record_spans,
-    _evaluate_parent_scenario,
-    _initialize_agent,
-    _log_result_to_stderr,
-    _log_stream_url,
-    _run_decorated_span_scenario,
-    _scenario_explanation,
-    _scorer_response_from_evaluation,
-    _tool_output_for_scorer,
-    _verify_manual_controls,
-    build_agent_control_step,
-    record_from_agent_control_step,
-    scorer_invoke_request_preview,
-)
+try:
+    from luna_example.cases import (
+        SCENARIO_BY_KEY,
+        SCENARIOS,
+        BankingSandbox,
+        BankingScenarioInput,
+        execute_account_lookup,
+        execute_banking_llm,
+        execute_policy_search,
+        execute_transfer,
+        recorder_session_step,
+        recorder_trace_step,
+        scenario_record,
+        step_tree,
+    )
+    from luna_example.streamlit_app import (
+        _dependency_sources,
+        _emit_record_spans,
+        _evaluate_parent_scenario,
+        _initialize_agent,
+        _log_result_to_stderr,
+        _log_stream_url,
+        _run_decorated_span_scenario,
+        _scenario_explanation,
+        _scorer_response_from_evaluation,
+        _tool_output_for_scorer,
+        _verify_manual_controls,
+        build_agent_control_step,
+        record_from_agent_control_step,
+        scorer_invoke_request_preview,
+    )
+except ModuleNotFoundError as exc:
+    if exc.name != "luna_example":
+        raise
+    from cases import (  # type: ignore[no-redef]
+        SCENARIO_BY_KEY,
+        SCENARIOS,
+        BankingSandbox,
+        BankingScenarioInput,
+        execute_account_lookup,
+        execute_banking_llm,
+        execute_policy_search,
+        execute_transfer,
+        recorder_session_step,
+        recorder_trace_step,
+        scenario_record,
+        step_tree,
+    )
+    from streamlit_app import (  # type: ignore[no-redef]
+        _dependency_sources,
+        _emit_record_spans,
+        _evaluate_parent_scenario,
+        _initialize_agent,
+        _log_result_to_stderr,
+        _log_stream_url,
+        _run_decorated_span_scenario,
+        _scenario_explanation,
+        _scorer_response_from_evaluation,
+        _tool_output_for_scorer,
+        _verify_manual_controls,
+        build_agent_control_step,
+        record_from_agent_control_step,
+        scorer_invoke_request_preview,
+    )
 
 ROOT = Path(__file__).parents[1]
 
@@ -435,7 +469,7 @@ def test_interactive_session_can_disable_the_retry_bypass() -> None:
 
 
 def test_control_configuration_json_is_valid_and_complete() -> None:
-    controls = json.loads((ROOT / "banking_multilevel_controls.json").read_text())
+    controls = json.loads((ROOT / "controls.json").read_text())
     assert len(controls) == 5
     assert {control["scenario"] for control in controls} == set(SCENARIO_BY_KEY)
     for control in controls:
@@ -633,15 +667,15 @@ def test_banking_project_uses_published_agent_control_and_galileo() -> None:
 
 
 def test_streamlit_uses_reusable_recorder_workflows_not_comparison_demo() -> None:
-    app_source = (ROOT / "banking_multilevel_streamlit_app.py").read_text()
+    app_source = (ROOT / "streamlit_app.py").read_text()
     assert "recorder_trace_step" in app_source
     assert "recorder_session_step" in app_source
     assert "step_recorder_vs_manual_demo" not in app_source
 
 
 def test_dependencies_are_published_and_documented() -> None:
-    pyproject = (ROOT / "banking-multilevel" / "pyproject.toml").read_text()
-    docs = (ROOT / "docs" / "11_banking_multilevel_runtime_e2e.md").read_text()
+    pyproject = (ROOT / "pyproject.toml").read_text()
+    docs = (ROOT / "README.md").read_text()
     assert "[tool.uv.sources]" not in pyproject
     assert '"agent-control-sdk[galileo,otel]==8.13.0"' in pyproject
     assert "../../agent-control/" not in pyproject
@@ -652,7 +686,7 @@ def test_dependencies_are_published_and_documented() -> None:
 
 
 def test_demo_contains_no_real_external_banking_calls() -> None:
-    cases_source = (ROOT / "banking_multilevel_cases.py").read_text()
+    cases_source = (ROOT / "cases.py").read_text()
     cases_tree = ast.parse(cases_source)
     imported_roots = {
         node.names[0].name.split(".")[0]
@@ -668,5 +702,5 @@ def test_demo_contains_no_real_external_banking_calls() -> None:
         {"httpx", "requests", "urllib", "socket"} & (imported_roots | imported_from)
     )
     assert 'external_call": False' in cases_source
-    app_source = (ROOT / "banking_multilevel_streamlit_app.py").read_text()
+    app_source = (ROOT / "streamlit_app.py").read_text()
     assert ".post(" not in app_source
