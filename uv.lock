@@ -15,23 +15,23 @@ resolution-markers = [
 
 [[package]]
 name = "agent-control-evaluator-galileo"
-version = "8.3.0"
-source = { registry = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/simple" }
+version = "8.7.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agent-control-evaluators" },
     { name = "agent-control-models" },
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/packages/packages/79/fb/5f63c9def15b6797a6ce195e281a6817529fca55822f25804ac3c62d3318/agent_control_evaluator_galileo-8.3.0.tar.gz", hash = "sha256:d41ebea8dad9c92352683924857fb6cdb9dad7fcd3d2cbaa6328104f5b7aad8a" }
+sdist = { url = "https://files.pythonhosted.org/packages/d1/ef/2d08340d2ec022f0a160b5f0ed2ae8a9f1e5a5cef9380a6fffebdfcd82c4/agent_control_evaluator_galileo-8.7.0.tar.gz", hash = "sha256:6440a8db80973c6dcab753669c596d7c4e8e33801d465a850e6bb47b6558de76", size = 23182, upload-time = "2026-09-08T17:11:05.042Z" }
 wheels = [
-    { url = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/packages/packages/27/88/0c803c94080fe4998471ea91ad2c61c825b8e8b125362b0885ce8af5417c/agent_control_evaluator_galileo-8.3.0-py3-none-any.whl", hash = "sha256:c4e0f409a7aa767e1b187f194e9c30ffe1f9d00c55d8c7ac1d5d12e5503cacde" },
+    { url = "https://files.pythonhosted.org/packages/0a/a3/1ebb5c17c6398d7a98489ed88f69d5952c5ca7896eb31c9fe5da98d9b790/agent_control_evaluator_galileo-8.7.0-py3-none-any.whl", hash = "sha256:a9c1aebaa49da1605138b661dd1e76ebbda0bbfdd432398ff58b25eae50114f0", size = 15184, upload-time = "2026-09-08T17:11:01.133Z" },
 ]
 
 [[package]]
 name = "agent-control-evaluators"
-version = "8.3.0"
-source = { registry = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/simple" }
+version = "8.7.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agent-control-models" },
     { name = "google-re2" },
@@ -39,9 +39,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "sqlglot", extra = ["c"] },
 ]
-sdist = { url = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/packages/packages/2c/ba/0eb75e792e875f4fde59574f25c435fb9b98944ff8cd42596eb06d77d394/agent_control_evaluators-8.3.0.tar.gz", hash = "sha256:0bd448681ef29eaccc0b7486d92799115f5e34b4420f147b9c0b89f977bd5114" }
+sdist = { url = "https://files.pythonhosted.org/packages/a7/b9/2a50493db9973711a4c2e6f89addff245d56427a91c36ecdbda25f400dbb/agent_control_evaluators-8.7.0.tar.gz", hash = "sha256:40e1f9a0c497dfbf029af490590ed9c9b7912a6c51931433e1865179b744c49f", size = 53045, upload-time = "2026-09-08T17:11:05.757Z" }
 wheels = [
-    { url = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/packages/packages/d1/fa/c509b695e68d1a6cde118cde6c809a2fb2618425d344f4c9733e99381a53/agent_control_evaluators-8.3.0-py3-none-any.whl", hash = "sha256:ef5a9baa792e0d1d0a1a7392660f0655de10ad8c690ada15bf44cedcc987f96b" },
+    { url = "https://files.pythonhosted.org/packages/99/0e/bd4813a331a765f67ca50a4747737f668e8e5c70d23446b5c0ee9f2b8c3f/agent_control_evaluators-8.7.0-py3-none-any.whl", hash = "sha256:85403c7c2b99a0b0efec67c662f1803fbc0d4f7499063105997e7ac7f868a0e3", size = 35670, upload-time = "2026-09-08T17:11:02.078Z" },
 ]
 
 [[package]]
@@ -59,9 +59,9 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agent-control-evaluator-galileo", specifier = ">=7.10.0" },
-    { name = "agent-control-evaluators", specifier = ">=7.10.0" },
-    { name = "agent-control-sdk", extras = ["galileo", "otel"], specifier = ">=7.10.0" },
+    { name = "agent-control-evaluator-galileo", specifier = "==8.7.0" },
+    { name = "agent-control-evaluators", specifier = "==8.7.0" },
+    { name = "agent-control-sdk", extras = ["galileo", "otel"], specifier = "==8.7.0" },
     { name = "galileo", extras = ["openai", "otel"], specifier = ">=2.3.0" },
     { name = "httpx", specifier = ">=0.26.0" },
     { name = "streamlit", specifier = ">=1.36" },
@@ -69,22 +69,22 @@ requires-dist = [
 
 [[package]]
 name = "agent-control-models"
-version = "8.3.0"
-source = { registry = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/simple" }
+version = "8.7.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-re2" },
     { name = "jsonschema" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/packages/packages/e1/15/42c165f4f0b08827e47e74e739db9008ee20485665c2d0a4c66e1f309ed1/agent_control_models-8.3.0.tar.gz", hash = "sha256:6ed5ff249bd80f925ee81ed59303bacf454827d5e640c36a2a06aed8ce7d8a75" }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/90/709c0f98cdd33692af16c0ba559b586ad8cbfa981b4ffdb8e979da2138db/agent_control_models-8.7.0.tar.gz", hash = "sha256:4e278fe2ccb451b3af80ccbbde3e31b5f4da93bd3e1f1e76c247cf808252c3e5", size = 33372, upload-time = "2026-09-08T17:10:41.624Z" }
 wheels = [
-    { url = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/packages/packages/d6/6f/9f6eb9aba1bf1a6aa4ca9b1b3808680b5601f97ecafe1305a6993aca9f08/agent_control_models-8.3.0-py3-none-any.whl", hash = "sha256:38dadf666c4f21f6a21939b984da40de95b9cf5bb270fa39d80a83bf2af5f966" },
+    { url = "https://files.pythonhosted.org/packages/19/91/493ffeace62a4324f98c1700fb261d5a2d99972f878b383db8ce9cfc5a1e/agent_control_models-8.7.0-py3-none-any.whl", hash = "sha256:be616bbbc0e642f25ecd215039a920e44070f94b352b7f686f2e5fe35c2f6652", size = 32916, upload-time = "2026-09-08T17:10:40.731Z" },
 ]
 
 [[package]]
 name = "agent-control-sdk"
-version = "8.3.0"
-source = { registry = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/simple" }
+version = "8.7.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agent-control-evaluators" },
     { name = "docstring-parser" },
@@ -94,9 +94,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/packages/packages/dd/41/4d886ebe652928df534042a6c880b1abee87829f5386b15e01b865637549/agent_control_sdk-8.3.0.tar.gz", hash = "sha256:80e619449e0327a4c318d766d065718972f757fe1d4d59817a157940dc651f2f" }
+sdist = { url = "https://files.pythonhosted.org/packages/8b/cc/b79fdd1acd27577136e18b1c7aa0a2dc9e61ddef9151cbe3afe625942962/agent_control_sdk-8.7.0.tar.gz", hash = "sha256:93c609f9694951307833ed9af86be22de154938a4c82fecdbc3f7c39ad558338", size = 208273, upload-time = "2026-09-08T17:11:31.243Z" }
 wheels = [
-    { url = "https://repo.splunkdev.net/artifactory/api/pypi/pypi/packages/packages/1f/fd/5f8e18f597b4b4bab6cdb33c120cb4f5b4017c6ee0f4b9facd4f9f01726d/agent_control_sdk-8.3.0-py3-none-any.whl", hash = "sha256:41bc2349624c9b9be57f5e7273a2928b326377df3bc4cc5b0e04d41142228ee6" },
+    { url = "https://files.pythonhosted.org/packages/59/07/a3f0c014655199d990e623d6b837341ce06f4928784806ed8fdb41185731/agent_control_sdk-8.7.0-py3-none-any.whl", hash = "sha256:968f9de57275cf32fc0d4c3f36388a0c52ba30d0c8becb476e7741270f9591d2", size = 136546, upload-time = "2026-09-08T17:11:29.859Z" },
 ]
 
 [package.optional-dependencies]

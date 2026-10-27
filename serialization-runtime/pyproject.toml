@@ -1,0 +1,30 @@
+[project]
+name = "ace-serialization-runtime-example"
+version = "0.1.0"
+description = "Streamlit serialization test suite using local Agent Control source"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "agent-control-sdk[galileo,otel]",
+  "agent-control-models",
+  "agent-control-engine",
+  "agent-control-telemetry",
+  "agent-control-evaluators",
+  "agent-control-evaluator-galileo",
+  "httpx>=0.26.0",
+  "python-dotenv>=1.0.0",
+  "streamlit>=1.36",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0.0", "ruff>=0.11.0"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+agent-control-sdk = { path = "../../agent-control/sdks/python", editable = true }
+agent-control-models = { path = "../../agent-control/models", editable = true }
+agent-control-engine = { path = "../../agent-control/engine", editable = true }
+agent-control-telemetry = { path = "../../agent-control/telemetry", editable = true }
+agent-control-evaluators = { path = "../../agent-control/evaluators/builtin", editable = true }
+agent-control-evaluator-galileo = { path = "../../agent-control/evaluators/contrib/galileo", editable = true }
