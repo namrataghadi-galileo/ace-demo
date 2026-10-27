@@ -1,5 +1,5 @@
 [project]
-name = "ace-llm-travel-assistant"
+name = "llm-travel-assistant"
 version = "0.1.0"
 description = "Interactive travel assistant demo for a Galileo LLM-as-judge evaluator control"
 requires-python = ">=3.12,<3.15"

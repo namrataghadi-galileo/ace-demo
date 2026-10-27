@@ -16,9 +16,8 @@
       "llm_model": "<select from dropdown>",
       "no_of_judges": 1,
       "step_by_step_reasoning": true,
-      "output_type": "Percentage",
-      "roll_up": "AVG",
-      "thresholds": {"green": ">= 50%", "red": "<= 0%"},
+      "output_type": "Multilabel",
+      "thresholds": {"green": "if evaluator = email"},
       "record_after_creation": {
         "scorer_id": "<backend-generated:output-pii-scorer-id>",
         "scorer_version": 0,
@@ -33,7 +32,7 @@
       "input_style": "Trace output only",
       "llm_model": "<select from dropdown>",
       "no_of_judges": 1,
-      "step_by_step_reasoning": false,
+      "step_by_step_reasoning": true,
       "output_type": "Percentage",
       "roll_up": "AVG",
       "thresholds": {"green": ">= 50%", "red": "<= 0%"},
@@ -82,7 +81,7 @@
         "execution": "server",
         "scope": {"step_types": ["trace"], "stages": ["post"]},
         "condition": {
-          "selector": {"path": "output"},
+          "selector": {"path": "*"},
           "evaluator": {
             "name": "galileo.llm",
             "config": {

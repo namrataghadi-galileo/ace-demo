@@ -50,9 +50,8 @@ You must **duplicate** them and configure the copy.
    - **LLM model**: select the model from the dropdown
    - **No of judges**: `1`
    - **Step-by-step reasoning**: on
-   - **Output type**: `Percentage`
-   - **Roll-up**: `AVG`
-   - **Thresholds**: green `>= 50%`, red `<= 0%`
+   - **Output type**: `Multilabel`
+   - **Thresholds**: green `if evaluator = email`
 3. Save the evaluator.
 
 ### Action Advancement evaluator
@@ -64,7 +63,7 @@ You must **duplicate** them and configure the copy.
    - **Input style**: `Trace output only`
    - **LLM model**: select the model from the dropdown
    - **No of judges**: `1`
-   - **Step-by-step reasoning**: off
+   - **Step-by-step reasoning**: on
    - **Output type**: `Percentage`
    - **Roll-up**: `AVG`
    - **Thresholds**: green `>= 50%`, red `<= 0%`
@@ -79,7 +78,7 @@ Open the Galileo Console for your devstack (click **Open** next to your stack
 in Aegis).
 
 Create the two controls for the travel assistant demo. Refer to
-[`travel_assistant_controls.json`](https://github.com/namrataghadi-galileo/ace-demo/blob/main/travel_assistant_controls.json)
+[`travel_assistant_controls.json`](travel_assistant_controls.json)
 for the full field reference.
 
 Controls can be created and attached in two ways:
@@ -95,7 +94,7 @@ Controls can be created and attached in two ways:
 
    **`travel-assistant-deny-trace-output-pii`**
    - Control name: `travel-assistant-deny-trace-output-pii`
-   - Description: `Deny a trace whose final travel assistant response leaks PII`
+   - Description: `Deny a trace whose final travel assistant response leaks PII (names, emails, phone numbers, etc.)`
    - Stages: `POST (after execution)`
    - Action: `Deny`
    - Execution environment: `Server`
@@ -117,7 +116,7 @@ Controls can be created and attached in two ways:
    - Execution environment: `Server`
    - Step types: `Trace`
    - Evaluator type: `llm`
-   - Path: `output`
+   - Path: `*`
    - Evaluator: select **Action Advancement** from the scorer dropdown
    - Comparison value: `1`
    - Operator: `eq`
@@ -148,16 +147,15 @@ and install dependencies:
 
 ```bash
 git clone https://github.com/namrataghadi-galileo/ace-demo
-cd ace-demo
-python3.12 -m venv .venv
+cd ace-demo/llm_travel_assistant
+uv sync
 source .venv/bin/activate
-pip install .
 ```
 
 Run the travel assistant app:
 
 ```bash
-streamlit run travel_assistant_multi_trace_streamlit_app.py
+streamlit run streamlit_app.py
 ```
 
 Open your browser at `http://localhost:8501`.
@@ -167,7 +165,7 @@ The app runs two scenarios:
 | Scenario | What happens | Expected outcome |
 |---|---|---|
 | **Scenario A** | Flight-booking LLM leaks PII in output | **Denied** — Output PII control fires |
-| **Scenario B** | Flight LLM returns a bad result for `book_flights` | **Steered** — Action Advancement control fires, app retries with alternate flight booking |
+| **Scenario B** | Flight LLM returns a non-advancing response containing "Please try again later" | **Steered** — Action Advancement control fires, app retries with alternate flight booking |
 
 ---
 

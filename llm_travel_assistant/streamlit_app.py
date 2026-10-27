@@ -38,7 +38,12 @@ import httpx
 import streamlit as st
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from common import (
     DEFAULT_AGENT_CONTROL_URL,
