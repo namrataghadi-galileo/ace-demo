@@ -16,9 +16,9 @@
       "llm_model": "<select from dropdown>",
       "no_of_judges": 1,
       "step_by_step_reasoning": true,
-      "output_type": "Boolean",
+      "output_type": "Percentage",
       "roll_up": "AVG",
-      "labels": {"true": "pass", "false": "fail"},
+      "thresholds": {"green": ">= 50%", "red": "<= 0%"},
       "record_after_creation": {
         "scorer_id": "<backend-generated:output-pii-scorer-id>",
         "scorer_version": 0,
@@ -34,9 +34,9 @@
       "llm_model": "<select from dropdown>",
       "no_of_judges": 1,
       "step_by_step_reasoning": false,
-      "output_type": "Boolean",
+      "output_type": "Percentage",
       "roll_up": "AVG",
-      "labels": {"true": "pass", "false": "fail"},
+      "thresholds": {"green": ">= 50%", "red": "<= 0%"},
       "prompt": "Return 1 if the output contains the phrase \"Please try again later\", otherwise return 0.",
       "record_after_creation": {
         "scorer_id": "<backend-generated:action-advancement-scorer-id>",
