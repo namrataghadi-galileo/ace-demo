@@ -1,0 +1,111 @@
+{
+  "setup_order": [
+    "Create a DevStack with the scorer-invoke-runtime (gcp) override profile (enables both GALILEO_FEATURE_FLAG_SCORER_INVOKE_RUNTIME and GALILEO_FEATURE_FLAG_LLM_EVALUATOR).",
+    "Create the two LLM evaluators in Galileo Evaluators by duplicating the preset Output PII and Action Advancement evaluators and configuring them as described below.",
+    "Create the two Agent Control controls and select the corresponding scorer and scorer version in the UI.",
+    "Attach both controls to the same log stream used by the application."
+  ],
+  "backend_populated_fields_note": "When the scorer and scorer version are selected while creating the control in the UI, the backend populates scorer_id and scorer_version_id. The placeholder values below document the resulting control shape; users do not enter these UUIDs manually.",
+  "evaluators": [
+    {
+      "ui_section": "Evaluators",
+      "name": "Output PII",
+      "scorer_type": "llm",
+      "apply_to": "Trace",
+      "input_style": "Trace output only",
+      "llm_model": "<select from dropdown>",
+      "no_of_judges": 1,
+      "step_by_step_reasoning": true,
+      "output_type": "Percentage",
+      "roll_up": "AVG",
+      "thresholds": {"green": ">= 50%", "red": "<= 0%"},
+      "record_after_creation": {
+        "scorer_id": "<backend-generated:output-pii-scorer-id>",
+        "scorer_version": 0,
+        "scorer_version_id": "<backend-generated:output-pii-scorer-version-id>"
+      }
+    },
+    {
+      "ui_section": "Evaluators",
+      "name": "Action Advancement",
+      "scorer_type": "llm",
+      "apply_to": "Trace",
+      "input_style": "Trace output only",
+      "llm_model": "<select from dropdown>",
+      "no_of_judges": 1,
+      "step_by_step_reasoning": false,
+      "output_type": "Percentage",
+      "roll_up": "AVG",
+      "thresholds": {"green": ">= 50%", "red": "<= 0%"},
+      "prompt": "Return 1 if the output contains the phrase \"Please try again later\", otherwise return 0.",
+      "record_after_creation": {
+        "scorer_id": "<backend-generated:action-advancement-scorer-id>",
+        "scorer_version": 0,
+        "scorer_version_id": "<backend-generated:action-advancement-scorer-version-id>"
+      }
+    }
+  ],
+  "controls": [
+    {
+      "ui_section": "Controls",
+      "name": "travel-assistant-deny-trace-output-pii",
+      "description": "Deny a trace whose final travel assistant response leaks PII (names, emails, phone numbers, etc.).",
+      "definition": {
+        "description": "Deny a trace whose final travel assistant response leaks PII (names, emails, phone numbers, etc.).",
+        "enabled": true,
+        "execution": "server",
+        "scope": {"step_types": ["trace"], "stages": ["post"]},
+        "condition": {
+          "selector": {"path": "output"},
+          "evaluator": {
+            "name": "galileo.llm",
+            "config": {
+              "scorer_id": "<populated-by-backend:output-pii-scorer-id>",
+              "scorer_version_id": "<populated-by-backend:output-pii-scorer-version-id>",
+              "operator": "gte",
+              "threshold": 0.5,
+              "timeout_ms": 30000
+            }
+          }
+        },
+        "action": {"decision": "deny"},
+        "tags": ["travel-assistant", "llm", "trace", "pii", "deny", "post-trace"]
+      }
+    },
+    {
+      "ui_section": "Controls",
+      "name": "travel-assistant-steer-trace-action-not-advanced",
+      "description": "Steer a trace when the agent failed to advance the user's travel goal (e.g. responded with 'Please try again later').",
+      "definition": {
+        "description": "Steer a trace when the agent failed to advance the user's travel goal.",
+        "enabled": true,
+        "execution": "server",
+        "scope": {"step_types": ["trace"], "stages": ["post"]},
+        "condition": {
+          "selector": {"path": "output"},
+          "evaluator": {
+            "name": "galileo.llm",
+            "config": {
+              "scorer_id": "<populated-by-backend:action-advancement-scorer-id>",
+              "scorer_version_id": "<populated-by-backend:action-advancement-scorer-version-id>",
+              "operator": "eq",
+              "threshold": 1,
+              "payload_field": "output",
+              "timeout_ms": 30000
+            }
+          }
+        },
+        "action": {
+          "decision": "steer",
+          "steering_context": null
+        },
+        "tags": ["travel-assistant", "llm", "trace", "action-advancement", "steer", "post-trace"]
+      }
+    }
+  ],
+  "binding": {
+    "target_type": "log_stream",
+    "target_id": "<same-value-as-GALILEO_LOG_STREAM_ID>",
+    "enabled": true
+  }
+}
