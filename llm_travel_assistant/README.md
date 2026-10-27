@@ -50,9 +50,9 @@ You must **duplicate** them and configure the copy.
    - **LLM model**: select the model from the dropdown
    - **No of judges**: `1`
    - **Step-by-step reasoning**: on
-   - **Output type**: `Percentage`
+   - **Output type**: `Boolean`
    - **Roll-up**: `AVG`
-   - **Thresholds**: green `>= 50%`, red `<= 0%`
+   - **Labels**: `true` → `pass`, `false` → `fail`
 3. Save the evaluator.
 
 ### Action Advancement evaluator
@@ -65,9 +65,9 @@ You must **duplicate** them and configure the copy.
    - **LLM model**: select the model from the dropdown
    - **No of judges**: `1`
    - **Step-by-step reasoning**: off
-   - **Output type**: `Percentage`
+   - **Output type**: `Boolean`
    - **Roll-up**: `AVG`
-   - **Thresholds**: green `>= 50%`, red `<= 0%`
+   - **Labels**: `true` → `pass`, `false` → `fail`
    - **Prompt**: `Return 1 if the output contains the phrase "Please try again later", otherwise return 0.`
 3. Save the evaluator.
 
